@@ -15,7 +15,7 @@
     <version>1.0.0</version>
     <modules>
         <module>snailmq-server</module>
-        <module>snail-common</module>
+        <module>snailmq-common</module>
     </modules>
     <packaging>pom</packaging>
 

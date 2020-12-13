@@ -31,7 +31,7 @@
         </dependency>
         <dependency>
             <groupId>com.snail</groupId>
-            <artifactId>snail-common</artifactId>
+            <artifactId>snailmq-common</artifactId>
             <version>1.0.0</version>
         </dependency>
     </dependencies>
