@@ -28,6 +28,7 @@ public class LongStoreItem extends AbstractStoreItem<Long> {
     public ByteBuffer serialize() {
         ByteBuffer byteBuffer = ByteBuffer.allocate(8);
         byteBuffer.putLong(body);
+        byteBuffer.flip();
         return byteBuffer;
     }
 

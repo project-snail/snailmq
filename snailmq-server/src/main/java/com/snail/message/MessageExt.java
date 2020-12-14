@@ -14,13 +14,17 @@ import lombok.Data;
 public class MessageExt extends Message {
 
 //    在commitLog文件中的偏移量
-    private int commitLogOffset;
+    private long commitLogOffset;
 
-    public MessageExt(Message message, int commitLogOffset) {
+    public MessageExt(Message message, long commitLogOffset) {
         this.commitLogOffset = commitLogOffset;
         setTopic(message.getTopic());
         setKey(message.getKey());
         setFlag(message.getFlag());
         setBody(message.getBody());
+    }
+
+    public MessageExt(long commitLogOffset) {
+        this.commitLogOffset = commitLogOffset;
     }
 }

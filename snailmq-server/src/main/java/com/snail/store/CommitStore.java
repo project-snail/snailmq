@@ -53,6 +53,78 @@ public class CommitStore {
         }
     }
 
+    public Message getMessage(String topic, String queueId, Long offset) {
+
+        CommitQueue commitQueue = findCommitQueueByOffset(topic, queueId, offset);
+
+        MessageExt messageExt = commitQueue.getMessageExt(Math.toIntExact(offset));
+
+        CommitLog commitLog = findCommitLogByOffset(messageExt.getCommitLogOffset());
+
+        return commitLog.getMessage(messageExt.getCommitLogOffset());
+
+    }
+
+    private CommitLog findCommitLogByOffset(Long offset) {
+
+        Map.Entry<Long, CommitLog> commitLogEntry = this.commitLogMap.firstEntry();
+        CommitLog commitLog = commitLogEntry.getValue();
+
+        if (commitLogEntry.getKey() < offset) {
+            if (commitLogEntry.getKey() + commitLog.getWritePos().get() <= offset) {
+                throw new RuntimeException("非法偏移量，该偏移量大于最大偏移量");
+            }
+            return commitLog;
+        }
+
+        Long find = binarySearchOffset(offset, this.commitLogMap.descendingKeySet());
+
+        return this.commitLogMap.get(find);
+
+    }
+
+    private CommitQueue findCommitQueueByOffset(String topic, String queueId, Long offset) {
+
+        TreeMap<Long, CommitQueue> queueIndexMap = this.commitQueueMap.get(topic + "@" + queueId);
+
+        Long find = binarySearchOffset(offset, queueIndexMap.descendingKeySet());
+
+        return queueIndexMap.get(find);
+
+    }
+
+    private Long binarySearchOffset(Long offset, Collection<Long> offsetList) {
+
+        ArrayList<Long> findList;
+
+        if (offsetList instanceof ArrayList) {
+            findList = (ArrayList<Long>) offsetList;
+        } else {
+            findList = new ArrayList<>(offsetList);
+        }
+
+        int left = 0, right = offsetList.size(), mid = (right + left) >> 1;
+
+        while (left < right) {
+
+            Long midOffset = findList.get(mid);
+            if (midOffset > offset) {
+                right = mid;
+            } else if (mid + 1 >= offsetList.size() || findList.get(mid + 1) > offset) {
+                return midOffset;
+            } else {
+                left = mid;
+            }
+
+            mid = (right + left) >> 1;
+
+        }
+
+        return findList.get(mid);
+
+    }
+
+
     private CommitQueue getCommitLogWithCreate(String topic, String key) {
 
         int queueId;

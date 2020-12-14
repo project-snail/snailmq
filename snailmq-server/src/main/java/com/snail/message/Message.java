@@ -100,5 +100,7 @@ public class Message implements StoreItem<Message> {
 
     }
 
-
+    public ByteBuffer getBody() {
+        return body.slice();
+    }
 }

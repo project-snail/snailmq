@@ -102,4 +102,10 @@ public class TestApplication {
         commitStore.addMessage(message);
 
     }
+
+    @Test
+    void testGetMessage() {
+        Message message = commitStore.getMessage("testTopic", "3", 1L);
+        System.out.println(message);
+    }
 }

@@ -28,6 +28,7 @@ public class IntStoreItem extends AbstractStoreItem<Integer> {
     public ByteBuffer serialize() {
         ByteBuffer byteBuffer = ByteBuffer.allocate(4);
         byteBuffer.putInt(body);
+        byteBuffer.flip();
         return byteBuffer;
     }
 

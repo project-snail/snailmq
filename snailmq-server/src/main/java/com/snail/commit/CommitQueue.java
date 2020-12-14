@@ -6,6 +6,7 @@ import com.snail.mapped.SelectMappedBuffer;
 import com.snail.message.MessageExt;
 import com.snail.store.IntStoreItem;
 import com.snail.store.LongStoreItem;
+import com.snail.util.StoreItemUtil;
 
 import java.io.File;
 import java.io.IOException;
@@ -42,7 +43,10 @@ public class CommitQueue {
         this.queueId = queueId;
         this.mappedFile = new MappedFile(file, (maxQueueItemSize + 1) * QUEUE_ITEM_SIZE, autoCreate);
         init();
-        this.selectMappedBuffer = this.mappedFile.select(writePos.get(), (maxQueueItemSize * QUEUE_ITEM_SIZE) - writePos.get());
+        this.selectMappedBuffer = this.mappedFile.select(
+            writePos.get(),
+            ((maxQueueItemSize - 1) * QUEUE_ITEM_SIZE) - writePos.get()
+        );
         this.headerSelectMappedBuffer = this.mappedFile.select(4, 16);
     }
 
@@ -64,6 +68,7 @@ public class CommitQueue {
             byteBuffer.putInt(20);
             this.writePos = new AtomicInteger(20);
             byteBuffer.rewind();
+            return;
         }
 
         this.writePos = new AtomicInteger(byteBuffer.getInt());
@@ -79,17 +84,35 @@ public class CommitQueue {
 
         ByteBuffer byteBuffer = ByteBuffer.allocate(QUEUE_ITEM_SIZE);
 
-        IntStoreItem logOffsetStoreItem = new IntStoreItem(messageExt.getCommitLogOffset());
+//        TODO
+        IntStoreItem logOffsetStoreItem = new IntStoreItem((int) messageExt.getCommitLogOffset());
 
         LongStoreItem currentTimeStoreItem = new LongStoreItem(System.currentTimeMillis());
 
         byteBuffer.put(logOffsetStoreItem.serialize());
         byteBuffer.put(currentTimeStoreItem.serialize());
+        byteBuffer.put(new byte[QUEUE_ITEM_SIZE - logOffsetStoreItem.getSize() - currentTimeStoreItem.getSize()]);
+
+        byteBuffer.flip();
 
         this.selectMappedBuffer.getByteBuffer().put(byteBuffer);
 
         updateWritePos();
 
+    }
+
+    public MessageExt getMessageExt(Integer offset) {
+        SelectMappedBuffer selectMappedBuffer = this.mappedFile.select((offset + 1) * QUEUE_ITEM_SIZE, QUEUE_ITEM_SIZE);
+        try {
+            ByteBuffer byteBuffer = selectMappedBuffer.getByteBuffer();
+            IntStoreItem logOffsetStoreItem = StoreItemUtil.deserializeWithMovePost(
+                byteBuffer,
+                IntStoreItem::deserialize
+            );
+            return new MessageExt(logOffsetStoreItem.body());
+        } finally {
+            selectMappedBuffer.release();
+        }
     }
 
     /**

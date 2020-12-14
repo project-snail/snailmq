@@ -5,6 +5,8 @@ import com.snail.mapped.MappedFile;
 import com.snail.mapped.SelectMappedBuffer;
 import com.snail.message.Message;
 import com.snail.message.MessageExt;
+import com.snail.store.ByteBufferStoreItem;
+import com.snail.util.StoreItemUtil;
 import lombok.Data;
 
 import java.io.File;
@@ -123,6 +125,19 @@ public class CommitLog {
 
     }
 
+    public Message getMessage(long commitLogOffset) {
+        SelectMappedBuffer selectMappedBuffer = this.mappedFile.select((int) commitLogOffset);
+        try {
+            ByteBufferStoreItem deserialize = StoreItemUtil.deserializeWithMovePost(
+                selectMappedBuffer.getByteBuffer(),
+                ByteBufferStoreItem::deserialize
+            );
+            return Message.deserialize(deserialize.body());
+        } finally {
+            selectMappedBuffer.release();
+        }
+    }
+
     /**
      * 更新写指针
      *
@@ -144,6 +159,5 @@ public class CommitLog {
         byteBuffer.putLong(this.latestWriteTimeStamp.longValue());
         byteBuffer.rewind();
     }
-
 
 }

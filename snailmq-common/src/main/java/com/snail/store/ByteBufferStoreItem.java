@@ -23,7 +23,7 @@ public class ByteBufferStoreItem extends AbstractStoreItem<ByteBuffer> {
 
     @Override
     public ByteBuffer body() {
-        return body;
+        return body.slice();
     }
 
     @Override
