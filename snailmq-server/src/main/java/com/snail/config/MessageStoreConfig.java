@@ -20,8 +20,12 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "message.store")
 public class MessageStoreConfig {
 
+    public final static int MESSAGE_MAGIC_CODE = 0xababf;
+
     private Integer commitLogFileSize = 1024 * 1024 * 1024;
 
     private Integer maxTopicLength = 128;
+
+    private Integer maxQueueItemSize = 10000;
 
 }

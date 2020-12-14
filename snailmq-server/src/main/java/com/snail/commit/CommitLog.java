@@ -1,8 +1,10 @@
 package com.snail.commit;
 
+import com.snail.config.MessageStoreConfig;
 import com.snail.mapped.MappedFile;
 import com.snail.mapped.SelectMappedBuffer;
 import com.snail.message.Message;
+import com.snail.message.MessageExt;
 import lombok.Data;
 
 import java.io.File;
@@ -22,26 +24,30 @@ import java.util.concurrent.atomic.AtomicLong;
 @Data
 public class CommitLog {
 
-//    魔数
-    public final static int MESSAGE_MAGIC_CODE = 0xababf;
+    //    魔数
+    public final static int MESSAGE_MAGIC_CODE = MessageStoreConfig.MESSAGE_MAGIC_CODE;
 
-//    写指针
+    //    写指针
     private AtomicInteger writePos;
 
-//    最后一个添加消息的时间戳
+    //    最后一个添加消息的时间戳
     private AtomicLong latestWriteTimeStamp;
 
-//    log文件映射对象
+    //    log文件映射对象
     private MappedFile mappedFile;
 
-//    log文件区域映射对象
+    //    log文件区域映射对象
     private SelectMappedBuffer selectMappedBuffer;
 
-//    用于持久化写指针的buffer
+    //    用于持久化写指针的buffer
     private SelectMappedBuffer writePosSelectMappedBuffer;
+
+    //    这个文件最大的大小
+    private int maxFileSize;
 
     public CommitLog(File file, int fileSize, boolean autoCreate) throws IOException {
         this.mappedFile = new MappedFile(file, fileSize, autoCreate);
+        this.maxFileSize = fileSize;
         init();
         this.selectMappedBuffer = mappedFile.select(writePos.get(), fileSize - writePos.get());
         this.writePosSelectMappedBuffer = mappedFile.select(4, 12);
@@ -90,9 +96,15 @@ public class CommitLog {
     /**
      * 添加消息
      * TODO 判断这个文件是否写的下这个消息
+     *
      * @param message
      */
-    public void addMessage(Message message) {
+    public MessageExt addMessage(Message message) {
+
+        if (message.getSize() > this.selectMappedBuffer.getByteBuffer().remaining()) {
+//            TODO 自定义ex
+            throw new RuntimeException("此log文件剩余空间不足，请切换到下一个log文件");
+        }
 
 //        获取序列化数据
         ByteBuffer messageByteBuffer = message.serialize();
@@ -103,10 +115,17 @@ public class CommitLog {
             .put(messageByteBuffer);
 
         updateWritePos(messageByteBuffer.limit());
+
+        return new MessageExt(
+            message,
+            writePos.get() - messageByteBuffer.limit()
+        );
+
     }
 
     /**
      * 更新写指针
+     *
      * @param size 写入数据大小
      */
     private void updateWritePos(int size) {

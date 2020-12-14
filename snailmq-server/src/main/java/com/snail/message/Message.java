@@ -1,9 +1,6 @@
 package com.snail.message;
 
-import com.snail.store.ByteArrStoreItem;
-import com.snail.store.ByteBufferStoreItem;
-import com.snail.store.IntStoreItem;
-import com.snail.store.StringStoreItem;
+import com.snail.store.*;
 import com.snail.util.StoreItemUtil;
 import lombok.Data;
 
@@ -18,7 +15,7 @@ import java.nio.ByteBuffer;
  * @date: 2020/12/13
  */
 @Data
-public class Message {
+public class Message implements StoreItem<Message> {
 
 //    主题
     private String topic;
@@ -31,6 +28,11 @@ public class Message {
 
 //    消息数据
     private ByteBuffer body;
+
+    @Override
+    public Message body() {
+        return this;
+    }
 
     public ByteBuffer serialize() {
 
@@ -62,6 +64,11 @@ public class Message {
 
         return byteBuffer;
 
+    }
+
+    @Override
+    public int getSize() {
+        return 0;
     }
 
     public static Message deserialize(ByteBuffer byteBuffer) {
