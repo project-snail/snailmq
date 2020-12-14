@@ -79,10 +79,10 @@ public class MappedFile {
         this.mappedByteBuffer = fileChannel
             .map(FileChannel.MapMode.READ_WRITE, 0, size);
 
-        log.debug(
-            "增加文件映射 目前共 {} 个文件对象, 共 {} 虚拟内存",
+        log.info(
+            "增加文件映射 目前共 {} 个文件对象, 共 {}MB 虚拟内存",
             TOTAL_MAPPED_FILE_SIZE.incrementAndGet(),
-            TOTAL_VIRTUAL_MEMORY_SIZE.addAndGet(size)
+            TOTAL_VIRTUAL_MEMORY_SIZE.addAndGet(size) / (1024 * 1024)
         );
     }
 
@@ -161,10 +161,10 @@ public class MappedFile {
             log.error(String.format("fileName: %s 关闭映射文件异常", fileName), e);
         }
 
-        log.debug(
-            "当前文件映射对象关闭 目前剩余 共 {} 个文件对象, 共 {} 虚拟内存",
+        log.info(
+            "当前文件映射对象关闭 目前剩余 共 {} 个文件对象, 共 {}MB 虚拟内存",
             TOTAL_MAPPED_FILE_SIZE.addAndGet(this.fileSize * -1),
-            TOTAL_VIRTUAL_MEMORY_SIZE.decrementAndGet()
+            TOTAL_VIRTUAL_MEMORY_SIZE.decrementAndGet() / (1024 * 1024)
         );
 
     }

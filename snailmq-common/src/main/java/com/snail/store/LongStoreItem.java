@@ -26,7 +26,7 @@ public class LongStoreItem extends AbstractStoreItem<Long> {
 
     @Override
     public ByteBuffer serialize() {
-        ByteBuffer byteBuffer = ByteBuffer.allocate(4);
+        ByteBuffer byteBuffer = ByteBuffer.allocate(8);
         byteBuffer.putLong(body);
         return byteBuffer;
     }

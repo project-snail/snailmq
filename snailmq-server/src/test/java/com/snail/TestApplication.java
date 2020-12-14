@@ -3,8 +3,10 @@ package com.snail;
 import com.snail.commit.CommitLog;
 import com.snail.message.Message;
 import com.snail.store.ByteBufferStoreItem;
+import com.snail.store.CommitStore;
 import com.snail.util.StoreItemUtil;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import java.io.File;
@@ -81,6 +83,23 @@ public class TestApplication {
         System.out.println(StandardCharsets.UTF_8.decode(message1.getBody()));
         System.out.println(StandardCharsets.UTF_8.decode(message2.getBody()));
 
+    }
+
+    @Autowired
+    private CommitStore commitStore;
+
+    @Test
+    void testSetup() {
+
+        Message message = new Message();
+        message.setTopic("testTopic");
+        message.setKey("12312");
+        message.setFlag(0);
+        message.setBody(
+            ByteBuffer.wrap("{\"name\": \"张三\"}".getBytes(StandardCharsets.UTF_8))
+        );
+
+        commitStore.addMessage(message);
 
     }
 }

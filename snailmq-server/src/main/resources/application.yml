@@ -1,0 +1,6 @@
+debug: false
+logging:
+  config: classpath:logback.xml
+message:
+  store:
+    base-dir-path: /Volumes/Mac/snailmq/

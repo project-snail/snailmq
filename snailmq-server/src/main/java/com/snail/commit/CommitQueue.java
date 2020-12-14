@@ -22,6 +22,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class CommitQueue {
 
+    private Integer queueId;
+
     //    写指针
     private AtomicInteger writePos;
 
@@ -36,10 +38,11 @@ public class CommitQueue {
 
     private final static int QUEUE_ITEM_SIZE = 20;
 
-    public CommitQueue(File file, int maxQueueItemSize, boolean autoCreate) throws IOException {
+    public CommitQueue(Integer queueId, File file, int maxQueueItemSize, boolean autoCreate) throws IOException {
+        this.queueId = queueId;
         this.mappedFile = new MappedFile(file, (maxQueueItemSize + 1) * QUEUE_ITEM_SIZE, autoCreate);
         init();
-        this.selectMappedBuffer = this.mappedFile.select(writePos.get(), (maxQueueItemSize * QUEUE_ITEM_SIZE));
+        this.selectMappedBuffer = this.mappedFile.select(writePos.get(), (maxQueueItemSize * QUEUE_ITEM_SIZE) - writePos.get());
         this.headerSelectMappedBuffer = this.mappedFile.select(4, 16);
     }
 
@@ -56,12 +59,14 @@ public class CommitQueue {
         if (magic != MessageStoreConfig.MESSAGE_MAGIC_CODE) {
             byteBuffer.rewind();
 //            魔数
-            byteBuffer.putInt(magic);
+            byteBuffer.putInt(MessageStoreConfig.MESSAGE_MAGIC_CODE);
 //            写指针
             byteBuffer.putInt(20);
-            this.writePos = new AtomicInteger(0);
+            this.writePos = new AtomicInteger(20);
             byteBuffer.rewind();
         }
+
+        this.writePos = new AtomicInteger(byteBuffer.getInt());
 
     }
 
@@ -105,4 +110,7 @@ public class CommitQueue {
         byteBuffer.rewind();
     }
 
+    public Integer getQueueId() {
+        return queueId;
+    }
 }

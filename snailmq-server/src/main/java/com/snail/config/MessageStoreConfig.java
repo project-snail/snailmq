@@ -28,4 +28,12 @@ public class MessageStoreConfig {
 
     private Integer maxQueueItemSize = 10000;
 
+    private Integer queueSize = 6;
+
+    private String baseDirPath = "store/";
+
+    private String commitLogDirPrefix = "commitLog/";
+
+    private String queueDirPath = "queue/";
+
 }
