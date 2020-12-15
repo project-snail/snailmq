@@ -9,6 +9,7 @@ import com.snail.util.StoreItemUtil;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.util.StopWatch;
 
 import java.io.File;
@@ -33,6 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @Description:
  * @date: 2020/12/13
  */
+@ActiveProfiles("csz")
 @SpringBootTest(classes = ServerApplication.class)
 public class TestApplication {
 
@@ -133,7 +135,7 @@ public class TestApplication {
 
         stopWatch.start("增加并获取消息");
 
-        ByteBuffer wrap = ByteBuffer.wrap("{\"name\": \"张三%d\"}".getBytes(StandardCharsets.UTF_8));
+        ByteBuffer wrap = ByteBuffer.wrap("{\"name\": \"张三\"}".getBytes(StandardCharsets.UTF_8));
         for (int i = 0; i < 100000; i++) {
 //            System.out.println(i);
             int i1 = i % 5;

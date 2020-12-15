@@ -46,6 +46,8 @@ public class CommitStore {
     private void init() {
         initCommitLog();
         initQueue();
+//        增加jvm结束hook 关闭资源
+        Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
     }
 
     /**
@@ -559,6 +561,15 @@ public class CommitStore {
             );
 
         return new Pair<>(queueId, queueTreeMap);
+
+    }
+
+    public void shutdown() {
+
+        this.commitLogMap.values().forEach(CommitLog::shutdown);
+        this.commitQueueMap.values().forEach(
+            queueMap -> queueMap.values().forEach(CommitQueue::shutdown)
+        );
 
     }
 

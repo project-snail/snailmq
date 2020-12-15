@@ -164,4 +164,10 @@ public class CommitQueue {
     public void setTopic(String topic) {
         this.topic = topic;
     }
+
+    public void shutdown() {
+        this.selectMappedBuffer.release();
+        this.headerSelectMappedBuffer.release();
+        this.mappedFile.shutdown();
+    }
 }
