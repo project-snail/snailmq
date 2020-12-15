@@ -11,17 +11,17 @@ import lombok.Data;
  * @date: 2020/12/14
  */
 @Data
-public class MessageExt extends Message {
+public class MessageExt {
 
-//    在commitLog文件中的偏移量
+    //在commitLog文件中的偏移量
     private long commitLogOffset;
+
+    //源消息
+    private Message message;
 
     public MessageExt(Message message, long commitLogOffset) {
         this.commitLogOffset = commitLogOffset;
-        setTopic(message.getTopic());
-        setKey(message.getKey());
-        setFlag(message.getFlag());
-        setBody(message.getBody());
+        this.message = message;
     }
 
     public MessageExt(long commitLogOffset) {

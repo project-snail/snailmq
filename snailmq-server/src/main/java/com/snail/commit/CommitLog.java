@@ -26,6 +26,8 @@ import java.util.concurrent.atomic.AtomicLong;
 @Data
 public class CommitLog {
 
+    private Long startOffset;
+
     //    魔数
     public final static int MESSAGE_MAGIC_CODE = MessageStoreConfig.MESSAGE_MAGIC_CODE;
 
@@ -47,7 +49,8 @@ public class CommitLog {
     //    这个文件最大的大小
     private int maxFileSize;
 
-    public CommitLog(File file, int fileSize, boolean autoCreate) throws IOException {
+    public CommitLog(Long startOffset, File file, int fileSize, boolean autoCreate) throws IOException {
+        this.startOffset = startOffset;
         this.mappedFile = new MappedFile(file, fileSize, autoCreate);
         this.maxFileSize = fileSize;
         init();
@@ -116,17 +119,19 @@ public class CommitLog {
         this.selectMappedBuffer.getByteBuffer()
             .put(messageByteBuffer);
 
+//        更新写指针
         updateWritePos(messageByteBuffer.limit());
 
         return new MessageExt(
             message,
-            writePos.get() - messageByteBuffer.limit()
+//            此文件的起始偏移 加上写的偏移
+            this.startOffset + (writePos.get() - messageByteBuffer.limit())
         );
 
     }
 
     public Message getMessage(long commitLogOffset) {
-        SelectMappedBuffer selectMappedBuffer = this.mappedFile.select((int) commitLogOffset);
+        SelectMappedBuffer selectMappedBuffer = this.mappedFile.select(commitLogOffset - startOffset);
         try {
             ByteBufferStoreItem deserialize = StoreItemUtil.deserializeWithMovePost(
                 selectMappedBuffer.getByteBuffer(),
@@ -136,6 +141,10 @@ public class CommitLog {
         } finally {
             selectMappedBuffer.release();
         }
+    }
+
+    public boolean isCanWrite(int messageSize) {
+        return messageSize <= this.selectMappedBuffer.getByteBuffer().remaining();
     }
 
     /**

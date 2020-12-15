@@ -39,11 +39,11 @@ public class ByteBufferStoreItem extends AbstractStoreItem<ByteBuffer> {
             );
 
         byteBuffer.putInt(body.limit());
-        byteBuffer.put(body);
+        byteBuffer.put(body.slice());
 
         byteBuffer.flip();
 
-        return byteBuffer;
+        return byteBuffer.slice();
 
     }
 

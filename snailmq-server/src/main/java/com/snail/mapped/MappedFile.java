@@ -32,7 +32,7 @@ public class MappedFile {
 
     private MappedByteBuffer mappedByteBuffer;
 
-    private int fileSize;
+    private long fileSize;
 
     private volatile boolean available = true;
 
@@ -41,11 +41,11 @@ public class MappedFile {
     //    总共映射了多少内存
     private final static AtomicLong TOTAL_VIRTUAL_MEMORY_SIZE = new AtomicLong();
 
-    public MappedFile(File file, int size) throws IOException {
+    public MappedFile(File file, long size) throws IOException {
         this(file, size, false);
     }
 
-    public MappedFile(File file, int size, boolean autoCreate) throws IOException {
+    public MappedFile(File file, long size, boolean autoCreate) throws IOException {
 
         if (file == null) {
             throw new IllegalArgumentException("文件不得为空");
@@ -71,7 +71,7 @@ public class MappedFile {
      * @param file 文件对象
      * @param size 文件映射大小
      */
-    private void init(File file, int size) throws IOException {
+    private void init(File file, long size) throws IOException {
         this.file = file;
         this.fileSize = size;
         this.fileChannel = new RandomAccessFile(file, "rw").getChannel();
@@ -93,16 +93,16 @@ public class MappedFile {
      * @param size 映射大小
      * @return ByteBuffer
      */
-    public SelectMappedBuffer select(int pos, int size) {
-        if (pos >= fileSize || size - pos > fileSize) {
+    public SelectMappedBuffer select(long pos, int size) {
+        if (pos > fileSize || pos + size > fileSize) {
             throw new IllegalArgumentException("偏移量错误, pos和pos+size不得大于文件大小");
         }
-        if (size <= 0) {
-            throw new IllegalArgumentException("映射大小错误，大小必须大于0");
+        if (size < 0) {
+            throw new IllegalArgumentException("映射大小错误，大小不得小于0");
         }
         ByteBuffer byteBuffer = this.mappedByteBuffer.slice();
-        byteBuffer.position(pos);
-        byteBuffer.limit(pos + size);
+        byteBuffer.position(Math.toIntExact(pos));
+        byteBuffer.limit(Math.toIntExact(pos + size));
         return new SelectMappedBuffer(pos, size, byteBuffer.slice(), this);
     }
 
@@ -112,8 +112,8 @@ public class MappedFile {
      * @param pos 起始偏移值
      * @return ByteBuffer
      */
-    public SelectMappedBuffer select(int pos) {
-        return select(pos, this.fileSize - pos);
+    public SelectMappedBuffer select(long pos) {
+        return select(pos, Math.toIntExact(this.fileSize - pos));
     }
 
     /**
@@ -124,11 +124,11 @@ public class MappedFile {
     private void buildFile(File file) throws IOException {
         if (!file.getParentFile().exists()) {
             boolean mkdirsResult = file.getParentFile().mkdirs();
-            log.info("创建新文件的父级文件夹 %s", (mkdirsResult ? "OK" : "Failed"));
+            log.info("创建新文件的父级文件夹 {} {}", file.getParentFile().getAbsolutePath(), (mkdirsResult ? "OK" : "Failed"));
         }
         if (!file.exists()) {
             boolean createNewFile = file.createNewFile();
-            log.info("创建新文件 %s", (createNewFile ? "OK" : "Failed"));
+            log.info("创建新文件 {} {}", file.getName(), (createNewFile ? "OK" : "Failed"));
         }
     }
 
@@ -163,8 +163,8 @@ public class MappedFile {
 
         log.info(
             "当前文件映射对象关闭 目前剩余 共 {} 个文件对象, 共 {}MB 虚拟内存",
-            TOTAL_MAPPED_FILE_SIZE.addAndGet(this.fileSize * -1),
-            TOTAL_VIRTUAL_MEMORY_SIZE.decrementAndGet() / (1024 * 1024)
+            TOTAL_MAPPED_FILE_SIZE.addAndGet(-1),
+            TOTAL_VIRTUAL_MEMORY_SIZE.addAndGet(this.fileSize * -1) / (1024 * 1024)
         );
 
     }

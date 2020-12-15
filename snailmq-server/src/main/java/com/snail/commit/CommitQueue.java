@@ -1,6 +1,7 @@
 package com.snail.commit;
 
 import com.snail.config.MessageStoreConfig;
+import com.snail.exceeption.CommitQueueOverflowException;
 import com.snail.mapped.MappedFile;
 import com.snail.mapped.SelectMappedBuffer;
 import com.snail.message.MessageExt;
@@ -23,7 +24,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class CommitQueue {
 
+    private String topic;
+
     private Integer queueId;
+
+    private Long startOffset;
 
     //    写指针
     private AtomicInteger writePos;
@@ -37,15 +42,17 @@ public class CommitQueue {
     //    用于持久化头部的buffer
     private SelectMappedBuffer headerSelectMappedBuffer;
 
-    private final static int QUEUE_ITEM_SIZE = 20;
+    public final static int QUEUE_ITEM_SIZE = 20;
 
-    public CommitQueue(Integer queueId, File file, int maxQueueItemSize, boolean autoCreate) throws IOException {
+    public CommitQueue(String topic, Integer queueId, Long startOffset, File file, int maxQueueItemSize, boolean autoCreate) throws IOException {
+        this.topic = topic;
         this.queueId = queueId;
+        this.startOffset = startOffset;
         this.mappedFile = new MappedFile(file, (maxQueueItemSize + 1) * QUEUE_ITEM_SIZE, autoCreate);
         init();
         this.selectMappedBuffer = this.mappedFile.select(
-            writePos.get(),
-            ((maxQueueItemSize - 1) * QUEUE_ITEM_SIZE) - writePos.get()
+            writePos.get() * QUEUE_ITEM_SIZE,
+            (maxQueueItemSize + 1 - writePos.get()) * QUEUE_ITEM_SIZE
         );
         this.headerSelectMappedBuffer = this.mappedFile.select(4, 16);
     }
@@ -65,8 +72,8 @@ public class CommitQueue {
 //            魔数
             byteBuffer.putInt(MessageStoreConfig.MESSAGE_MAGIC_CODE);
 //            写指针
-            byteBuffer.putInt(20);
-            this.writePos = new AtomicInteger(20);
+            byteBuffer.putInt(1);
+            this.writePos = new AtomicInteger(1);
             byteBuffer.rewind();
             return;
         }
@@ -78,14 +85,12 @@ public class CommitQueue {
     public void addMessageExt(MessageExt messageExt) {
 
         if (this.selectMappedBuffer.getByteBuffer().remaining() == 0) {
-            //            TODO 自定义ex
-            throw new RuntimeException("此queue文件剩余空间不足，请切换到下一个queue文件");
+            throw new CommitQueueOverflowException(this);
         }
 
         ByteBuffer byteBuffer = ByteBuffer.allocate(QUEUE_ITEM_SIZE);
 
-//        TODO
-        IntStoreItem logOffsetStoreItem = new IntStoreItem((int) messageExt.getCommitLogOffset());
+        LongStoreItem logOffsetStoreItem = new LongStoreItem(messageExt.getCommitLogOffset());
 
         LongStoreItem currentTimeStoreItem = new LongStoreItem(System.currentTimeMillis());
 
@@ -101,13 +106,16 @@ public class CommitQueue {
 
     }
 
-    public MessageExt getMessageExt(Integer offset) {
-        SelectMappedBuffer selectMappedBuffer = this.mappedFile.select((offset + 1) * QUEUE_ITEM_SIZE, QUEUE_ITEM_SIZE);
+    public MessageExt getMessageExt(Long offset) {
+        SelectMappedBuffer selectMappedBuffer = this.mappedFile.select(
+            ((offset - startOffset) + 1) * QUEUE_ITEM_SIZE,
+            QUEUE_ITEM_SIZE
+        );
         try {
             ByteBuffer byteBuffer = selectMappedBuffer.getByteBuffer();
-            IntStoreItem logOffsetStoreItem = StoreItemUtil.deserializeWithMovePost(
+            LongStoreItem logOffsetStoreItem = StoreItemUtil.deserializeWithMovePost(
                 byteBuffer,
-                IntStoreItem::deserialize
+                LongStoreItem::deserialize
             );
             return new MessageExt(logOffsetStoreItem.body());
         } finally {
@@ -120,7 +128,7 @@ public class CommitQueue {
      */
     private void updateWritePos() {
 //        设置指针
-        this.writePos.addAndGet(CommitQueue.QUEUE_ITEM_SIZE);
+        this.writePos.incrementAndGet();
         saveHeader();
     }
 
@@ -133,7 +141,27 @@ public class CommitQueue {
         byteBuffer.rewind();
     }
 
+    public boolean getIsWritable() {
+        return this.selectMappedBuffer.getByteBuffer().remaining() > 0;
+    }
+
     public Integer getQueueId() {
         return queueId;
+    }
+
+    public Long getStartOffset() {
+        return startOffset;
+    }
+
+    public Integer getWritePos() {
+        return writePos.get();
+    }
+
+    public String getTopic() {
+        return topic;
+    }
+
+    public void setTopic(String topic) {
+        this.topic = topic;
     }
 }

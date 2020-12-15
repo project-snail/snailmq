@@ -1,6 +1,7 @@
 package com.snail;
 
 import com.snail.commit.CommitLog;
+import com.snail.config.MessageStoreConfig;
 import com.snail.message.Message;
 import com.snail.store.ByteBufferStoreItem;
 import com.snail.store.CommitStore;
@@ -8,6 +9,7 @@ import com.snail.util.StoreItemUtil;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.util.StopWatch;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -18,6 +20,10 @@ import java.nio.CharBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @version V1.0
@@ -34,6 +40,7 @@ public class TestApplication {
     void testCommitLog() throws IOException {
 
         CommitLog commitLog = new CommitLog(
+            0L,
             new File("store/commit_log"),
             1024 * 1024 * 10,
             true
@@ -105,7 +112,69 @@ public class TestApplication {
 
     @Test
     void testGetMessage() {
-        Message message = commitStore.getMessage("testTopic", "3", 1L);
+        Message message = commitStore.getMessage("testTopic", 3, 0L);
         System.out.println(message);
+    }
+
+    @Test
+    void testFormat() {
+        System.out.println(String.format("%020d", 10));
+    }
+
+    @Autowired
+    private MessageStoreConfig messageStoreConfig;
+
+    @Test
+    void testRoll() {
+
+        HashMap<String, Map<Integer, AtomicLong>> map = new HashMap<>();
+
+        StopWatch stopWatch = new StopWatch();
+
+        stopWatch.start("增加并获取消息");
+
+        ByteBuffer wrap = ByteBuffer.wrap("{\"name\": \"张三%d\"}".getBytes(StandardCharsets.UTF_8));
+        for (int i = 0; i < 100000; i++) {
+//            System.out.println(i);
+            int i1 = i % 5;
+            String topic = "testTopic" + i1;
+            String key = "12312" + ((i * 13) % 7);
+            int queueId = (key.hashCode()) % messageStoreConfig.getQueueSize();
+            Message message = new Message();
+            message.setTopic(topic);
+            message.setKey(key);
+            message.setFlag(i1);
+            message.setBody(
+                wrap.slice()
+            );
+
+            commitStore.addMessage(message);
+
+            Map<Integer, AtomicLong> topicMap = map.computeIfAbsent(topic, k -> new HashMap<>());
+            AtomicLong index = topicMap.computeIfAbsent(queueId, k -> new AtomicLong());
+
+//            System.out.println("存---------------------");
+
+            message = commitStore.getMessage(topic, queueId, index.getAndIncrement());
+
+//            System.out.println(message.toString());
+
+//            System.out.println("取---------------------");
+
+        }
+
+        stopWatch.stop();
+
+        System.out.println(stopWatch.prettyPrint());
+
+    }
+
+    @Test
+    void testGetOldMessage() {
+
+        Message testTopic1 = commitStore.getMessage("testTopic1", 1, 3L);
+
+        System.out.println(testTopic1.toString());
+
     }
 }

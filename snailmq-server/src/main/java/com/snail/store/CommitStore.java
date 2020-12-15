@@ -3,8 +3,10 @@ package com.snail.store;
 import com.snail.commit.CommitLog;
 import com.snail.commit.CommitQueue;
 import com.snail.config.MessageStoreConfig;
+import com.snail.exceeption.CommitQueueOverflowException;
 import com.snail.message.Message;
 import com.snail.message.MessageExt;
+import com.snail.util.FileUtil;
 import com.snail.util.Pair;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -41,169 +43,21 @@ public class CommitStore {
         init();
     }
 
-    public void addMessage(Message message) {
-        try {
-            reentrantLock.lock();
-            CommitLog writeCommitLog = getWriteCommitLog();
-            MessageExt messageExt = writeCommitLog.addMessage(message);
-            CommitQueue commitQueue = getCommitLogWithCreate(message.getTopic(), message.getKey());
-            commitQueue.addMessageExt(messageExt);
-        } finally {
-            reentrantLock.unlock();
-        }
-    }
-
-    public Message getMessage(String topic, String queueId, Long offset) {
-
-        CommitQueue commitQueue = findCommitQueueByOffset(topic, queueId, offset);
-
-        MessageExt messageExt = commitQueue.getMessageExt(Math.toIntExact(offset));
-
-        CommitLog commitLog = findCommitLogByOffset(messageExt.getCommitLogOffset());
-
-        return commitLog.getMessage(messageExt.getCommitLogOffset());
-
-    }
-
-    private CommitLog findCommitLogByOffset(Long offset) {
-
-        Map.Entry<Long, CommitLog> commitLogEntry = this.commitLogMap.firstEntry();
-        CommitLog commitLog = commitLogEntry.getValue();
-
-        if (commitLogEntry.getKey() < offset) {
-            if (commitLogEntry.getKey() + commitLog.getWritePos().get() <= offset) {
-                throw new RuntimeException("非法偏移量，该偏移量大于最大偏移量");
-            }
-            return commitLog;
-        }
-
-        Long find = binarySearchOffset(offset, this.commitLogMap.descendingKeySet());
-
-        return this.commitLogMap.get(find);
-
-    }
-
-    private CommitQueue findCommitQueueByOffset(String topic, String queueId, Long offset) {
-
-        TreeMap<Long, CommitQueue> queueIndexMap = this.commitQueueMap.get(topic + "@" + queueId);
-
-        Long find = binarySearchOffset(offset, queueIndexMap.descendingKeySet());
-
-        return queueIndexMap.get(find);
-
-    }
-
-    private Long binarySearchOffset(Long offset, Collection<Long> offsetList) {
-
-        ArrayList<Long> findList;
-
-        if (offsetList instanceof ArrayList) {
-            findList = (ArrayList<Long>) offsetList;
-        } else {
-            findList = new ArrayList<>(offsetList);
-        }
-
-        int left = 0, right = offsetList.size(), mid = (right + left) >> 1;
-
-        while (left < right) {
-
-            Long midOffset = findList.get(mid);
-            if (midOffset > offset) {
-                right = mid;
-            } else if (mid + 1 >= offsetList.size() || findList.get(mid + 1) > offset) {
-                return midOffset;
-            } else {
-                left = mid;
-            }
-
-            mid = (right + left) >> 1;
-
-        }
-
-        return findList.get(mid);
-
-    }
-
-
-    private CommitQueue getCommitLogWithCreate(String topic, String key) {
-
-        int queueId;
-
-        if (StringUtils.isBlank(key)) {
-            queueId = ((int) Math.floor(Math.random() * 10)) % messageStoreConfig.getQueueSize();
-        } else {
-            queueId = key.hashCode() % messageStoreConfig.getQueueSize();
-        }
-
-        String topicQueueIdKey = topic + "@" + queueId;
-
-        TreeMap<Long, CommitQueue> queueIndexMap = this.commitQueueMap.get(topicQueueIdKey);
-
-        if (queueIndexMap != null) {
-            return queueIndexMap.firstEntry().getValue();
-        }
-
-        try {
-            CommitQueue commitQueue = new CommitQueue(
-                queueId,
-                new File(
-                    messageStoreConfig.getBaseDirPath()
-                        + messageStoreConfig.getQueueDirPath()
-                        + File.separator + topic
-                        + File.separator + queueId
-                        + File.separator + "000000000"
-                ),
-                messageStoreConfig.getMaxQueueItemSize(),
-                true
-            );
-            queueIndexMap = new TreeMap<>(Comparator.reverseOrder());
-            queueIndexMap.put(0L, commitQueue);
-            this.commitQueueMap.put(topicQueueIdKey, queueIndexMap);
-            return commitQueue;
-        } catch (IOException e) {
-            log.error("创建新queueQueue失败", e);
-//            TODO 自定义Ex
-            throw new RuntimeException("创建新queueQueue失败");
-        }
-
-    }
-
-    private CommitLog getWriteCommitLog() {
-        Map.Entry<Long, CommitLog> firstEntry = commitLogMap.firstEntry();
-        if (firstEntry != null) {
-            return firstEntry.getValue();
-        }
-        try {
-            CommitLog commitLog = new CommitLog(
-                new File(
-                    messageStoreConfig.getBaseDirPath() + messageStoreConfig.getCommitLogDirPrefix() + "00000000000000000000"
-                ),
-                messageStoreConfig.getCommitLogFileSize(),
-                true
-            );
-            commitLogMap.put(0L, commitLog);
-            return commitLog;
-        } catch (IOException e) {
-            log.error("创建新commitLog文件失败", e);
-            throw new RuntimeException("创建新commitLog文件失败");
-        }
-    }
-
     private void init() {
         initCommitLog();
         initQueue();
     }
 
+    /**
+     * 初始化log对象
+     */
     private void initCommitLog() {
 
 //        commitLog存储位置
         String commitLogDirPath = messageStoreConfig.getBaseDirPath() + messageStoreConfig.getCommitLogDirPrefix();
 
-        File[] commitLogFiles = getDirFiles(commitLogDirPath);
-
-        if (commitLogFiles == null || commitLogFiles.length == 0) {
-            return;
-        }
+//        log文件夹下所有文件
+        File[] commitLogFiles = FileUtil.getDirFilesWithCreateDir(commitLogDirPath);
 
         this.commitLogMap = Arrays.stream(commitLogFiles)
             .map(
@@ -223,7 +77,12 @@ public class CommitStore {
                     try {
                         return new Pair<>(
                             commitLogFileMinOffset,
-                            new CommitLog(file, this.messageStoreConfig.getCommitLogFileSize(), false)
+                            new CommitLog(
+                                commitLogFileMinOffset,
+                                file,
+                                this.messageStoreConfig.getCommitLogFileSize(),
+                                false
+                            )
                         );
                     } catch (IOException e) {
                         log.error("创建commitLog对象错误", e);
@@ -258,25 +117,23 @@ public class CommitStore {
 //        queue存储位置
         String queueDirPath = messageStoreConfig.getBaseDirPath() + messageStoreConfig.getQueueDirPath();
 
-        File[] topicDirs = getDirFiles(queueDirPath);
-
-        if (topicDirs == null || topicDirs.length == 0) {
-            return;
-        }
+        File[] topicDirs = FileUtil.getDirFilesWithCreateDir(queueDirPath);
 
         this.commitQueueMap = Arrays.stream(topicDirs)
             .filter(File::isDirectory)
             .map(
-                dir -> {
+//              topic文件夹对象
+                topicDir -> {
 //                    queueId文件夹
-                    File[] queueFiles = dir.listFiles();
+                    File[] queueFiles = topicDir.listFiles();
                     if (queueFiles == null || queueFiles.length == 0) {
                         return null;
                     }
                     return Arrays.stream(queueFiles)
-                        .map(this::parserCommitQueueMap)
+//                        逐个解析成queue对象                        文件夹名称就是topic名称
+                        .map(queueFile -> this.parserCommitQueueMap(topicDir.getName(), queueFile))
                         .filter(Objects::nonNull)
-                        .map(queueMap -> new Pair<>(dir, queueMap))
+                        .map(queueMap -> new Pair<>(topicDir, queueMap))
                         .collect(Collectors.toList());
                 }
             )
@@ -284,14 +141,362 @@ public class CommitStore {
             .flatMap(List::stream)
             .collect(
                 Collectors.toMap(
-                    pair -> pair.getKey().getName() + "@" + pair.getValue().getKey(),
+                    pair -> pair.getKey().getName() + MessageStoreConfig.TOPIC_GROUP_SEPARATOR + pair.getValue().getKey(),
                     pair -> pair.getValue().getValue()
                 )
             );
 
     }
 
-    private Pair<Integer, TreeMap<Long, CommitQueue>> parserCommitQueueMap(File queueIdDirFile) {
+    public synchronized void addMessage(Message message) {
+
+//        获取可写的log文件
+        CommitLog writeCommitLog = getWriteCommitLogWithCreate(message.getSize());
+//        写入 并获取额外信息
+        MessageExt messageExt = writeCommitLog.addMessage(message);
+//        获取可写的queue文件
+        CommitQueue commitQueue = getWriteCommitQueueWithCreate(message.getTopic(), message.getKey());
+//        写入queue索引
+        commitQueue.addMessageExt(messageExt);
+//        try {
+//            reentrantLock.lock();
+//        } finally {
+//            reentrantLock.unlock();
+//        }
+    }
+
+    /**
+     * 获取可写的log对象
+     *
+     * @param messageSize
+     * @return
+     */
+    private CommitLog getWriteCommitLogWithCreate(int messageSize) {
+
+        CommitLog commitLog;
+
+//        取出最大偏移量的log对象
+        Map.Entry<Long, CommitLog> firstEntry = commitLogMap.firstEntry();
+        if (firstEntry == null) {
+//            一个都没有则创建一个新的
+            return createNextCommitLog(null);
+        }
+
+        commitLog = firstEntry.getValue();
+
+        if (!commitLog.isCanWrite(messageSize)) {
+//            如果这个文件写满了 创建一个新的
+            commitLog = createNextCommitLog(commitLog);
+        }
+
+        return commitLog;
+
+    }
+
+    /**
+     * 创建新的log对象
+     *
+     * @param lastCommitLog 当前最后一个log对象，为null时，偏移量初始为0
+     * @return 新的log对象
+     */
+    private CommitLog createNextCommitLog(CommitLog lastCommitLog) {
+
+//        获取下一个文件的初始偏移量 同时作为文件名
+        Long newOffset = Optional.ofNullable(lastCommitLog)
+            .map(lastLog -> lastLog.getStartOffset() + lastLog.getWritePos().get())
+            .orElse(0L);
+
+        try {
+//            创建新文件对象
+            CommitLog commitLog = new CommitLog(
+                newOffset,
+                new File(
+                    messageStoreConfig.getBaseDirPath()
+                        + messageStoreConfig.getCommitLogDirPrefix()
+                        + String.format("%020d", newOffset)
+                ),
+                messageStoreConfig.getCommitLogFileSize(),
+                true
+            );
+            commitLogMap.put(newOffset, commitLog);
+            return commitLog;
+        } catch (IOException e) {
+            log.error("创建新commitLog文件失败", e);
+            throw new RuntimeException("创建新commitLog文件失败");
+        }
+    }
+
+    /**
+     * 获取可写的queue对象
+     *
+     * @param topic 主题
+     * @param key   客户端自定义key
+     * @return queue可写对象
+     */
+    private CommitQueue getWriteCommitQueueWithCreate(String topic, String key) {
+
+        int queueId;
+
+//        TODO 换好点的
+//        获取key对应的queueId
+        if (StringUtils.isBlank(key)) {
+            queueId = ((int) Math.floor(Math.random() * 10)) % messageStoreConfig.getQueueSize();
+        } else {
+            queueId = key.hashCode() % messageStoreConfig.getQueueSize();
+        }
+
+        String topicQueueIdKey = topic + MessageStoreConfig.TOPIC_GROUP_SEPARATOR + queueId;
+
+        TreeMap<Long/* queueId */, CommitQueue> queueIndexMap = this.commitQueueMap.get(topicQueueIdKey);
+
+        if (queueIndexMap == null) {
+//            没有则新创建
+            return createNextCommitQueue(topic, queueId, null);
+        }
+
+        CommitQueue commitQueue = queueIndexMap.firstEntry().getValue();
+
+        if (!commitQueue.getIsWritable()) {
+//            不可写时新创建
+            commitQueue = createNextCommitQueue(topic, queueId, commitQueue.getStartOffset());
+        }
+
+        return commitQueue;
+
+    }
+
+    /**
+     * 创建新的queue存储对象 用于最后一个存满了 或者 新开始的queue
+     *
+     * @param topic      主题
+     * @param queueId    id
+     * @param lastOffset 上一个的偏移量 可为null
+     * @return 新的queue对象
+     */
+    private CommitQueue createNextCommitQueue(String topic, int queueId, Long lastOffset) {
+        try {
+
+//            和创建log 大致相同
+//            获取新的偏移量
+            long newOffset = Optional.ofNullable(lastOffset)
+                .map(offset -> offset + this.messageStoreConfig.getMaxQueueItemSize())
+                .orElse(0L);
+
+            String newCommitQueueFileName = String.format(
+                "%09d",
+                newOffset
+            );
+
+//            创建新的queueId对象
+            CommitQueue commitQueue = new CommitQueue(
+                topic,
+                queueId,
+                newOffset,
+                new File(
+                    messageStoreConfig.getBaseDirPath()
+                        + messageStoreConfig.getQueueDirPath()
+                        + File.separator + topic
+                        + File.separator + queueId
+                        + File.separator + newCommitQueueFileName
+                ),
+                messageStoreConfig.getMaxQueueItemSize(),
+                true
+            );
+
+            String topicQueueIdKey = topic + MessageStoreConfig.TOPIC_GROUP_SEPARATOR + queueId;
+            TreeMap<Long, CommitQueue> queueIndexMap = this.commitQueueMap.computeIfAbsent(
+                topicQueueIdKey,
+                k -> new TreeMap<>(Comparator.reverseOrder())
+            );
+
+            queueIndexMap.put(newOffset, commitQueue);
+            return commitQueue;
+        } catch (IOException e) {
+            log.error("创建新queueQueue失败", e);
+//            TODO 自定义Ex
+            throw new RuntimeException("创建新queueQueue失败");
+        }
+
+    }
+
+    /**
+     * 获取queue对象的时候应该保证还有空间能写入
+     */
+    @Deprecated
+    private void doAddMessageExt(CommitQueue commitQueue, MessageExt messageExt) {
+
+        try {
+            commitQueue.addMessageExt(messageExt);
+        } catch (CommitQueueOverflowException e) {
+            log.info(
+                "commitQueue文件写满，切换至下一个文件 queueId: {}, offset: {}",
+                commitQueue.getQueueId(),
+                commitQueue.getStartOffset()
+            );
+            CommitQueue nextCommitQueue = createNextCommitQueue(
+                commitQueue.getTopic(),
+                commitQueue.getQueueId(),
+                commitQueue.getStartOffset()
+            );
+//            TODO 递归
+            doAddMessageExt(nextCommitQueue, messageExt);
+        }
+
+    }
+
+    /**
+     * 获取消息
+     *
+     * @param topic   主题名
+     * @param queueId queueId
+     * @param offset  偏移量(相对于queue)
+     * @return 消息
+     */
+    public Message getMessage(String topic, Integer queueId, Long offset) {
+
+//        找到偏移量对应的queue
+        CommitQueue commitQueue = findCommitQueueByOffset(topic, queueId, offset);
+
+//        取出额外信息 包含消息在log中的偏移量
+        MessageExt messageExt = commitQueue.getMessageExt(offset);
+
+//        获取偏移量对应的log对象
+        CommitLog commitLog = findCommitLogByOffset(messageExt.getCommitLogOffset());
+
+//        从log对象中获取消息
+        return commitLog.getMessage(messageExt.getCommitLogOffset());
+
+    }
+
+    /**
+     * 从偏移量中找到对应的log对象
+     *
+     * @param offset 偏移量
+     * @return log对象
+     */
+    private CommitLog findCommitLogByOffset(Long offset) {
+
+        Map.Entry<Long, CommitLog> firstCommitLogEntry = this.commitLogMap.firstEntry();
+
+//        判断偏移量是否合法
+        if (
+            firstCommitLogEntry == null ||
+                Optional.of(firstCommitLogEntry.getValue())
+                    .map(log -> log.getStartOffset() + log.getWritePos().get())
+                    .orElse(-1L) <= offset
+        ) {
+            throw new RuntimeException("非法偏移量，该偏移量大于最大偏移量");
+        }
+
+        CommitLog commitLog = firstCommitLogEntry.getValue();
+
+//        如果含有最大偏移量的log对象 包含该消息 就不用去之前的log对象中寻找了
+        if (commitLog.getStartOffset() < offset) {
+            return commitLog;
+        }
+
+//        使用二分查找 找出可能在哪个log对象中
+        Long find = binarySearchOffset(offset, this.commitLogMap.descendingKeySet());
+
+        commitLog = this.commitLogMap.get(find);
+
+        if (commitLog.getStartOffset() > offset) {
+            throw new RuntimeException("该消息可能已被清除");
+        }
+
+        if (commitLog.getStartOffset() + commitLog.getWritePos().get() <= offset) {
+            throw new RuntimeException("消息文件缺失");
+        }
+
+        return commitLog;
+
+    }
+
+    /**
+     * 构建offset查找queue
+     * 和查找log对象大致相同，只有查找历史消息不一致
+     * @param topic 主题
+     * @param queueId id
+     * @param offset 偏移量
+     * @return queue对象
+     */
+    private CommitQueue findCommitQueueByOffset(String topic, Integer queueId, Long offset) {
+
+        TreeMap<Long/* queueId */, CommitQueue> queueIndexMap = this.commitQueueMap.get(topic + MessageStoreConfig.TOPIC_GROUP_SEPARATOR + queueId);
+
+        Map.Entry<Long, CommitQueue> firstEntry = queueIndexMap.firstEntry();
+
+        if (
+            firstEntry == null || firstEntry.getValue() == null ||
+                Optional.of(firstEntry.getValue())
+                    .map(queue -> queue.getStartOffset() + queue.getWritePos())
+                    .orElse(-1L) < offset
+        ) {
+            throw new RuntimeException("非法偏移量，该偏移量大于最大偏移量");
+        }
+
+        CommitQueue commitQueue = firstEntry.getValue();
+
+        if (commitQueue.getStartOffset() <= offset) {
+            return commitQueue;
+        }
+
+//        每个消息固定长度 可以根据offset计算，准确知道消息所在queue对象
+        commitQueue = queueIndexMap.get(offset - (offset % this.messageStoreConfig.getMaxQueueItemSize()));
+
+        if (commitQueue == null) {
+            throw new RuntimeException("该消息已被删除");
+        }
+
+        return commitQueue;
+
+//        Long find = binarySearchOffset(offset, queueIndexMap.descendingKeySet());
+
+//        return queueIndexMap.get(find);
+
+    }
+
+    /**
+     * 二分查找实现
+     */
+    private Long binarySearchOffset(Long offset, Collection<Long> offsetList) {
+
+        ArrayList<Long> findList;
+
+        if (offsetList instanceof ArrayList) {
+            findList = (ArrayList<Long>) offsetList;
+        } else {
+            findList = new ArrayList<>(offsetList);
+        }
+
+        int left = 0, right = offsetList.size(), mid = (right + left) >> 1;
+
+        while (left < right) {
+
+            Long midOffset = findList.get(mid);
+            if (midOffset > offset) {
+                right = mid;
+            } else if (mid + 1 >= offsetList.size() || findList.get(mid + 1) > offset) {
+                return midOffset;
+            } else {
+                left = mid;
+            }
+
+            mid = (right + left) >> 1;
+
+        }
+
+        return findList.get(mid);
+
+    }
+
+    /**
+     * 根据文件和topic解析出queue对象
+     * @param topic 主题
+     * @param queueIdDirFile queue所在文件夹
+     * @return Map<queueId, Map<offset, queue>>
+     */
+    private Pair<Integer, TreeMap<Long, CommitQueue>> parserCommitQueueMap(String topic, File queueIdDirFile) {
 
         if (queueIdDirFile == null || !queueIdDirFile.isDirectory()) {
             log.error(
@@ -313,7 +518,7 @@ public class CommitStore {
             return null;
         }
 
-        File[] queueIndexFiles = getDirFiles(queueIdDirFile);
+        File[] queueIndexFiles = FileUtil.getDirFilesWithCreateDir(queueIdDirFile);
 
         TreeMap<Long, CommitQueue> queueTreeMap = Arrays.stream(queueIndexFiles)
             .map(
@@ -329,7 +534,9 @@ public class CommitStore {
                         return new Pair<>(
                             queueIndexOffset,
                             new CommitQueue(
+                                topic,
                                 queueId,
+                                queueIndexOffset,
                                 queueIndexFile,
                                 messageStoreConfig.getMaxQueueItemSize(),
                                 false
@@ -355,23 +562,5 @@ public class CommitStore {
 
     }
 
-    private File[] getDirFiles(File dirPathFile) {
-        if (dirPathFile.exists() && !dirPathFile.isDirectory()) {
-//            TODO 自定义Ex
-            throw new RuntimeException("存储文件位置错误");
-        }
-        if (!dirPathFile.exists()) {
-            boolean mkdirsResult = dirPathFile.mkdirs();
-            log.info(
-                "存储位置不存在，自动创建目录 %s %s", dirPathFile, (mkdirsResult ? "OK" : "FAILED")
-            );
-            return new File[0];
-        }
-        return dirPathFile.listFiles();
-    }
-
-    private File[] getDirFiles(String dirPath) {
-        return getDirFiles(new File(dirPath));
-    }
 
 }

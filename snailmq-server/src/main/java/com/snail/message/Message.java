@@ -5,6 +5,8 @@ import com.snail.util.StoreItemUtil;
 import lombok.Data;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 
 /**
  * @version V1.0
@@ -17,17 +19,20 @@ import java.nio.ByteBuffer;
 @Data
 public class Message implements StoreItem<Message> {
 
-//    主题
+    //    主题
     private String topic;
 
-//    客户端自定义key
+    //    客户端自定义key
     private String key;
 
-//    标识号
+    //    标识号
     private int flag;
 
-//    消息数据
+    //    消息数据
     private ByteBuffer body;
+
+    //    序列化数据cache
+    private ByteBuffer serialize;
 
     @Override
     public Message body() {
@@ -35,6 +40,10 @@ public class Message implements StoreItem<Message> {
     }
 
     public ByteBuffer serialize() {
+
+        if (serialize != null) {
+            return serialize.slice();
+        }
 
         IntStoreItem flagStoreItem = new IntStoreItem(flag);
 
@@ -62,13 +71,15 @@ public class Message implements StoreItem<Message> {
 
         byteBuffer.flip();
 
-        return byteBuffer;
+        this.serialize = byteBuffer.slice();
+
+        return byteBuffer.slice();
 
     }
 
     @Override
     public int getSize() {
-        return 0;
+        return Optional.ofNullable(this.serialize).orElseGet(this::serialize).limit();
     }
 
     public static Message deserialize(ByteBuffer byteBuffer) {
@@ -102,5 +113,15 @@ public class Message implements StoreItem<Message> {
 
     public ByteBuffer getBody() {
         return body.slice();
+    }
+
+    @Override
+    public String toString() {
+        return "Message{" +
+            "topic='" + topic + '\'' +
+            ", key='" + key + '\'' +
+            ", flag=" + flag +
+            ", body=" + body.limit() +
+            '}';
     }
 }

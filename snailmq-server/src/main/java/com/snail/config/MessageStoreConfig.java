@@ -22,6 +22,8 @@ public class MessageStoreConfig {
 
     public final static int MESSAGE_MAGIC_CODE = 0xababf;
 
+    public static final String TOPIC_GROUP_SEPARATOR = "@";
+
     private Integer commitLogFileSize = 1024 * 1024 * 1024;
 
     private Integer maxTopicLength = 128;
