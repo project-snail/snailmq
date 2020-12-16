@@ -154,7 +154,7 @@ public class CommitQueue {
     }
 
     public Integer getWritePos() {
-        return writePos.get();
+        return writePos.get() - 1;
     }
 
     public String getTopic() {

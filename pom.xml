@@ -24,6 +24,7 @@
         <commons-lang3.version>3.10</commons-lang3.version>
         <commons-io.version>2.6</commons-io.version>
         <lombok.version>1.18.12</lombok.version>
+        <jackson.version>2.11.2</jackson.version>
     </properties>
 
     <dependencyManagement>
@@ -52,6 +53,11 @@
                 <groupId>org.projectlombok</groupId>
                 <artifactId>lombok</artifactId>
                 <version>${lombok.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${jackson.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

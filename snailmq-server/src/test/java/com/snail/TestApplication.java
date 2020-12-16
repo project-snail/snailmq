@@ -2,7 +2,10 @@ package com.snail;
 
 import com.snail.commit.CommitLog;
 import com.snail.config.MessageStoreConfig;
+import com.snail.consumer.ConsumerService;
+import com.snail.consumer.TopicGroupOffset;
 import com.snail.message.Message;
+import com.snail.message.MessageRes;
 import com.snail.store.ByteBufferStoreItem;
 import com.snail.store.CommitStore;
 import com.snail.util.StoreItemUtil;
@@ -21,7 +24,9 @@ import java.nio.CharBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -114,7 +119,7 @@ public class TestApplication {
 
     @Test
     void testGetMessage() {
-        Message message = commitStore.getMessage("testTopic", 3, 0L);
+        MessageRes message = commitStore.getMessage("testTopic", 3, 0L);
         System.out.println(message);
     }
 
@@ -136,9 +141,9 @@ public class TestApplication {
         stopWatch.start("增加并获取消息");
 
         ByteBuffer wrap = ByteBuffer.wrap("{\"name\": \"张三\"}".getBytes(StandardCharsets.UTF_8));
-        for (int i = 0; i < 100000; i++) {
+        for (int i = 0; i < 10000; i++) {
 //            System.out.println(i);
-            int i1 = i % 5;
+            int i1 = i % 2;
             String topic = "testTopic" + i1;
             String key = "12312" + ((i * 13) % 7);
             int queueId = (key.hashCode()) % messageStoreConfig.getQueueSize();
@@ -157,9 +162,9 @@ public class TestApplication {
 
 //            System.out.println("存---------------------");
 
-            message = commitStore.getMessage(topic, queueId, index.getAndIncrement());
+            MessageRes message1 = commitStore.getMessage(topic, queueId, index.getAndIncrement());
 
-//            System.out.println(message.toString());
+            System.out.println(message1.toString());
 
 //            System.out.println("取---------------------");
 
@@ -174,9 +179,138 @@ public class TestApplication {
     @Test
     void testGetOldMessage() {
 
-        Message testTopic1 = commitStore.getMessage("testTopic1", 1, 3L);
+        MessageRes testTopic1 = commitStore.getMessage("testTopic1", 1, 3L);
 
         System.out.println(testTopic1.toString());
+
+    }
+
+    @Autowired
+    private ConsumerService consumerService;
+
+    @Test
+    void testConsumerService() {
+        String topic = "11";
+        String key = "122";
+        int queueId = key.hashCode() % messageStoreConfig.getQueueSize();
+
+        Message message = new Message();
+        message.setTopic(topic);
+        message.setKey(key);
+        message.setFlag(1);
+        ByteBuffer wrap = ByteBuffer.wrap("{\"name\": \"张三\"}".getBytes(StandardCharsets.UTF_8));
+        message.setBody(
+            wrap.slice()
+        );
+
+        consumerService.addMessage(message);
+
+        MessageRes getMeg = consumerService.getMessage(
+            topic,
+            queueId,
+            0L
+        );
+
+        System.out.println(getMeg);
+
+        TopicGroupOffset groupOffset = new TopicGroupOffset(topic, "testGroup", queueId, 0L);
+
+        List<TopicGroupOffset> topicGroupOffsetList = consumerService.getOffset(
+            Collections.singletonList(groupOffset)
+        );
+
+        consumerService.updateOffset(groupOffset);
+
+        topicGroupOffsetList = consumerService.getOffset(
+            Collections.singletonList(groupOffset)
+        );
+
+        System.out.println(topicGroupOffsetList);
+
+    }
+
+    @Test
+    void testMinOffset() {
+
+        TopicGroupOffset groupOffset = new TopicGroupOffset("testTopic1", "testTopic1", 2, 0L);
+
+        List<TopicGroupOffset> queueMinOffset = this.consumerService.getQueueMinOffset(
+            Collections.singletonList(groupOffset)
+        );
+
+        System.out.println(queueMinOffset);
+
+    }
+
+    @Test
+    void testConsumer() {
+
+        String topic = "testConsumer";
+        String key = "1221";
+        int queueId = key.hashCode() % messageStoreConfig.getQueueSize();
+
+        for (int i = 0; i < 1003; i++) {
+
+            Message message = new Message();
+            message.setTopic(topic);
+            message.setKey(key);
+            message.setFlag(i);
+            message.setBody(ByteBuffer.wrap("123".getBytes(StandardCharsets.UTF_8)));
+
+            this.consumerService.addMessage(message);
+        }
+
+        long nextMsgOffset;
+//        查找模板
+        TopicGroupOffset findOffset = new TopicGroupOffset(topic, "testTopic1", queueId, -1L);
+        List<TopicGroupOffset> topicGroupOffsetList = Collections.singletonList(findOffset);
+
+//        查找历史消费记录
+        List<TopicGroupOffset> queueMinOffset = this.consumerService.getOffset(topicGroupOffsetList);
+
+        TopicGroupOffset topicGroupOffset = queueMinOffset.get(0);
+
+//        如果没消费过
+        if (topicGroupOffset.getOffset() < 0) {
+//            获取当前queue最小偏移的消息
+            topicGroupOffset = this.commitStore.getQueueMinOffset(topicGroupOffsetList).get(0);
+            nextMsgOffset = topicGroupOffset.getOffset();
+        } else {
+//            获取当前消费记录的下一个消息
+            nextMsgOffset = this.consumerService.getNextMsgOffset(Collections.singletonList(topicGroupOffset)).get(0).getOffset();
+        }
+
+//        统计消息数
+        AtomicLong count = new AtomicLong();
+
+        while (nextMsgOffset != -1) {
+
+//            获取消息
+            MessageRes messageRes = consumerService.getMessage(
+                findOffset.getTopic(),
+                findOffset.getQueueId(),
+                nextMsgOffset
+            );
+
+            count.incrementAndGet();
+
+            System.out.println(messageRes.getNextMsgOffset());
+
+//            更新消费偏移量
+            topicGroupOffset.setOffset(nextMsgOffset);
+            consumerService.updateOffset(topicGroupOffset);
+
+            if (messageRes.getNextMsgOffset() == -1) {
+                System.out.println("消费结束");
+                System.out.println(count.get());
+                break;
+            }
+
+//            下一个消息的偏移量
+            nextMsgOffset = messageRes.getNextMsgOffset();
+
+        }
+
 
     }
 }

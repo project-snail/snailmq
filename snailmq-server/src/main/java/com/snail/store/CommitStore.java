@@ -3,9 +3,11 @@ package com.snail.store;
 import com.snail.commit.CommitLog;
 import com.snail.commit.CommitQueue;
 import com.snail.config.MessageStoreConfig;
+import com.snail.consumer.TopicGroupOffset;
 import com.snail.exceeption.CommitQueueOverflowException;
 import com.snail.message.Message;
 import com.snail.message.MessageExt;
+import com.snail.message.MessageRes;
 import com.snail.util.FileUtil;
 import com.snail.util.Pair;
 import lombok.extern.slf4j.Slf4j;
@@ -354,10 +356,13 @@ public class CommitStore {
      * @param offset  偏移量(相对于queue)
      * @return 消息
      */
-    public Message getMessage(String topic, Integer queueId, Long offset) {
+    public MessageRes getMessage(String topic, int queueId, Long offset) {
 
 //        找到偏移量对应的queue
         CommitQueue commitQueue = findCommitQueueByOffset(topic, queueId, offset);
+
+//        找到下一个消息的偏移量
+        long nextMessageOffset = findNextMessageOffset(topic, queueId, commitQueue, offset);
 
 //        取出额外信息 包含消息在log中的偏移量
         MessageExt messageExt = commitQueue.getMessageExt(offset);
@@ -366,7 +371,45 @@ public class CommitStore {
         CommitLog commitLog = findCommitLogByOffset(messageExt.getCommitLogOffset());
 
 //        从log对象中获取消息
-        return commitLog.getMessage(messageExt.getCommitLogOffset());
+        Message message = commitLog.getMessage(messageExt.getCommitLogOffset());
+
+        return new MessageRes(message, nextMessageOffset);
+
+    }
+
+    public MessageRes getNextMsgOffset(String topic, int queueId, long offset) {
+
+//        找到偏移量对应的queue
+        CommitQueue commitQueue = findCommitQueueByOffset(topic, queueId, offset);
+
+//        找到下一个消息的偏移量
+        long nextMessageOffset = findNextMessageOffset(topic, queueId, commitQueue, offset);
+
+        return new MessageRes(null, nextMessageOffset);
+
+    }
+
+    private long findNextMessageOffset(String topic, int queueId, CommitQueue commitQueue, Long offset) {
+
+        long maxQueueOffset = commitQueue.getStartOffset() + commitQueue.getWritePos();
+
+//        如果当前队列还有存有下一个消息
+        if (maxQueueOffset > offset + 1) {
+            return offset + 1;
+        }
+
+        TreeMap<Long/* queueId */, CommitQueue> queueIndexMap = this.commitQueueMap.get(topic + MessageStoreConfig.TOPIC_GROUP_SEPARATOR + queueId);
+
+//        如果没有了，查找至少有着比offset + 1偏移量还大的队列
+        Long find = binarySearchOffset(offset + 1, queueIndexMap.descendingKeySet());
+
+        CommitQueue nextMessageCommitQueue = queueIndexMap.get(find);
+
+//        如果没有 返回-1 代表暂时没有下一个消息了
+        return Optional.ofNullable(nextMessageCommitQueue)
+            .map(CommitQueue::getStartOffset)
+            .map(startOffset -> startOffset < offset + 1 ? -1 : startOffset)
+            .orElse(-1L);
 
     }
 
@@ -387,7 +430,7 @@ public class CommitStore {
                     .map(log -> log.getStartOffset() + log.getWritePos().get())
                     .orElse(-1L) <= offset
         ) {
-            throw new RuntimeException("非法偏移量，该偏移量大于最大偏移量");
+            throw new RuntimeException(String.format("非法偏移量，该偏移量大于最大偏移量 %d", offset));
         }
 
         CommitLog commitLog = firstCommitLogEntry.getValue();
@@ -417,9 +460,10 @@ public class CommitStore {
     /**
      * 构建offset查找queue
      * 和查找log对象大致相同，只有查找历史消息不一致
-     * @param topic 主题
+     *
+     * @param topic   主题
      * @param queueId id
-     * @param offset 偏移量
+     * @param offset  偏移量
      * @return queue对象
      */
     private CommitQueue findCommitQueueByOffset(String topic, Integer queueId, Long offset) {
@@ -478,8 +522,8 @@ public class CommitStore {
             Long midOffset = findList.get(mid);
             if (midOffset > offset) {
                 right = mid;
-            } else if (mid + 1 >= offsetList.size() || findList.get(mid + 1) > offset) {
-                return midOffset;
+            } else if (mid + 1 >= offsetList.size() || offset < findList.get(mid + 1)) {
+                return findList.get(mid);
             } else {
                 left = mid;
             }
@@ -494,9 +538,10 @@ public class CommitStore {
 
     /**
      * 根据文件和topic解析出queue对象
-     * @param topic 主题
+     *
+     * @param topic          主题
      * @param queueIdDirFile queue所在文件夹
-     * @return Map<queueId, Map<offset, queue>>
+     * @return Map<queueId, Map < offset, queue>>
      */
     private Pair<Integer, TreeMap<Long, CommitQueue>> parserCommitQueueMap(String topic, File queueIdDirFile) {
 
@@ -574,4 +619,30 @@ public class CommitStore {
     }
 
 
+    public List<TopicGroupOffset> getQueueMinOffset(Collection<TopicGroupOffset> topicGroupOffsetList) {
+        return topicGroupOffsetList.stream()
+            .map(
+                topicGroupOffset -> {
+
+                    TopicGroupOffset groupOffset = new TopicGroupOffset(
+                        topicGroupOffset.getTopic(),
+                        topicGroupOffset.getGroup(),
+                        topicGroupOffset.getQueueId(),
+                        -1L
+                    );
+
+                    String topicQueueKey = topicGroupOffset.getTopic() + MessageStoreConfig.TOPIC_GROUP_SEPARATOR + topicGroupOffset.getQueueId();
+                    Long minOffset = Optional.ofNullable(this.commitQueueMap.get(topicQueueKey))
+                        .map(TreeMap::lastKey)
+                        .orElse(-1L);
+
+                    groupOffset.setOffset(minOffset);
+
+                    return groupOffset;
+
+                }
+            )
+            .collect(Collectors.toList());
+
+    }
 }

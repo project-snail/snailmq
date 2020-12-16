@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration scan="true" scanPeriod="60 seconds" debug="false">
-    <contextName>dubang</contextName>
+    <contextName>snailmq</contextName>
     <property name="log.path" value="logs" />
     <!-- 日志输出格式 -->
     <property name="log.pattern" value="%d{HH:mm:ss.SSS} [%thread] %-5level %logger{20} - [%method,%line] - %msg%n" />

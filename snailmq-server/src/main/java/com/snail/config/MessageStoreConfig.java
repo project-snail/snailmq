@@ -5,6 +5,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.stereotype.Component;
 
+import java.io.File;
+
 
 /**
  * @version V1.0
@@ -30,12 +32,16 @@ public class MessageStoreConfig {
 
     private Integer maxQueueItemSize = 10000;
 
+    private Integer persistenceConsumerGroupOffsetInterval = 1000 * 5;
+
     private Integer queueSize = 6;
 
     private String baseDirPath = "store/";
 
-    private String commitLogDirPrefix = "commitLog/";
+    public final String commitLogDirPrefix = "commitLog" + File.separator;
 
-    private String queueDirPath = "queue/";
+    public final String queueDirPath = "queue" + File.separator;
+
+    public final String groupOffsetConfigPath = "config" + File.separator + "groupOffsetConfig.json";
 
 }
