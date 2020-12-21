@@ -3,6 +3,7 @@ package com.snail.store;
 import sun.nio.ch.DirectBuffer;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 /**
  * @version V1.0
@@ -63,6 +64,23 @@ public class ByteBufferStoreItem extends AbstractStoreItem<ByteBuffer> {
         body.limit(bodyLen);
 
         return new ByteBufferStoreItem(body);
+
+    }
+
+    public static void main(String[] args) {
+
+        ByteBufferStoreItem byteBufferStoreItem = new ByteBufferStoreItem(ByteBuffer.wrap("123".getBytes(
+            StandardCharsets.UTF_8))
+        );
+
+        System.out.println(byteBufferStoreItem);
+
+        ByteBuffer serialize = byteBufferStoreItem.serialize();
+
+        ByteBufferStoreItem deserialize = ByteBufferStoreItem.deserialize(serialize);
+
+        System.out.println(deserialize);
+
 
     }
 

@@ -1,11 +1,10 @@
 package com.snail.commit;
 
 import com.snail.config.MessageStoreConfig;
-import com.snail.exceeption.CommitQueueOverflowException;
+import com.snail.exception.CommitQueueOverflowException;
 import com.snail.mapped.MappedFile;
 import com.snail.mapped.SelectMappedBuffer;
 import com.snail.message.MessageExt;
-import com.snail.store.IntStoreItem;
 import com.snail.store.LongStoreItem;
 import com.snail.util.StoreItemUtil;
 

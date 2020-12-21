@@ -133,11 +133,7 @@ public class CommitLog {
     public Message getMessage(long commitLogOffset) {
         SelectMappedBuffer selectMappedBuffer = this.mappedFile.select(commitLogOffset - startOffset);
         try {
-            ByteBufferStoreItem deserialize = StoreItemUtil.deserializeWithMovePost(
-                selectMappedBuffer.getByteBuffer(),
-                ByteBufferStoreItem::deserialize
-            );
-            return Message.deserialize(deserialize.body());
+            return Message.deserialize(selectMappedBuffer.getByteBuffer());
         } finally {
             selectMappedBuffer.release();
         }

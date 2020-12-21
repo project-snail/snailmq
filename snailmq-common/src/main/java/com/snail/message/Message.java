@@ -5,7 +5,6 @@ import com.snail.util.StoreItemUtil;
 import lombok.Data;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 /**
@@ -17,7 +16,7 @@ import java.util.Optional;
  * @date: 2020/12/13
  */
 @Data
-public class Message implements StoreItem<Message> {
+public class Message extends AbstractStoreItem<Message> {
 
     //    主题
     private String topic;
@@ -83,6 +82,8 @@ public class Message implements StoreItem<Message> {
     }
 
     public static Message deserialize(ByteBuffer byteBuffer) {
+
+        byteBuffer = getBodyLenByteBuffer(byteBuffer.slice());
 
         Message message = new Message();
 

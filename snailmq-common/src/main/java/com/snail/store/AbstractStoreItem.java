@@ -28,7 +28,21 @@ public abstract class AbstractStoreItem<T> implements StoreItem<T> {
 
         byteBuffer.flip();
 
+        return byteBuffer.slice();
+    }
+
+    public static ByteBuffer getBodyLenByteBuffer(ByteBuffer byteBuffer) {
+
+        byteBuffer = byteBuffer.slice();
+
+        int bodyLen = byteBuffer.getInt();
+
+        byteBuffer = byteBuffer.slice();
+
+        byteBuffer.limit(bodyLen);
+
         return byteBuffer;
+
     }
 
 }

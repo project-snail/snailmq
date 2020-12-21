@@ -1,4 +1,4 @@
-package com.snail.exceeption;
+package com.snail.exception;
 
 import com.snail.commit.CommitQueue;
 
@@ -10,7 +10,7 @@ import com.snail.commit.CommitQueue;
  * @Description:
  * @date: 2020/12/15
  */
-public class CommitQueueOverflowException extends RuntimeException {
+public class CommitQueueOverflowException extends SnailBaseException {
     public CommitQueueOverflowException(CommitQueue commitQueue) {
         super(
             String.format(

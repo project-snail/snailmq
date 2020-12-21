@@ -4,10 +4,13 @@ import com.snail.commit.CommitLog;
 import com.snail.commit.CommitQueue;
 import com.snail.config.MessageStoreConfig;
 import com.snail.consumer.TopicGroupOffset;
-import com.snail.exceeption.CommitQueueOverflowException;
+import com.snail.exception.CommitQueueOverflowException;
+import com.snail.exception.OffsetOverflowException;
+import com.snail.exception.SnailBaseException;
 import com.snail.message.Message;
 import com.snail.message.MessageExt;
 import com.snail.message.MessageRes;
+import com.snail.remoting.command.type.CommandExceptionStateEnums;
 import com.snail.util.FileUtil;
 import com.snail.util.Pair;
 import lombok.extern.slf4j.Slf4j;
@@ -145,7 +148,7 @@ public class CommitStore {
             .flatMap(List::stream)
             .collect(
                 Collectors.toMap(
-                    pair -> pair.getKey().getName() + MessageStoreConfig.TOPIC_GROUP_SEPARATOR + pair.getValue().getKey(),
+                    pair -> pair.getKey().getName() + MessageStoreConfig.TOPIC_QUEUE_SEPARATOR + pair.getValue().getKey(),
                     pair -> pair.getValue().getValue()
                 )
             );
@@ -249,7 +252,7 @@ public class CommitStore {
             queueId = key.hashCode() % messageStoreConfig.getQueueSize();
         }
 
-        String topicQueueIdKey = topic + MessageStoreConfig.TOPIC_GROUP_SEPARATOR + queueId;
+        String topicQueueIdKey = topic + MessageStoreConfig.TOPIC_QUEUE_SEPARATOR + queueId;
 
         TreeMap<Long/* queueId */, CommitQueue> queueIndexMap = this.commitQueueMap.get(topicQueueIdKey);
 
@@ -307,7 +310,7 @@ public class CommitStore {
                 true
             );
 
-            String topicQueueIdKey = topic + MessageStoreConfig.TOPIC_GROUP_SEPARATOR + queueId;
+            String topicQueueIdKey = topic + MessageStoreConfig.TOPIC_QUEUE_SEPARATOR + queueId;
             TreeMap<Long, CommitQueue> queueIndexMap = this.commitQueueMap.computeIfAbsent(
                 topicQueueIdKey,
                 k -> new TreeMap<>(Comparator.reverseOrder())
@@ -361,6 +364,11 @@ public class CommitStore {
 //        找到偏移量对应的queue
         CommitQueue commitQueue = findCommitQueueByOffset(topic, queueId, offset);
 
+//        无此消息队列
+        if (commitQueue == null) {
+            return new MessageRes(null, -1);
+        }
+
 //        找到下一个消息的偏移量
         long nextMessageOffset = findNextMessageOffset(topic, queueId, commitQueue, offset);
 
@@ -391,14 +399,19 @@ public class CommitStore {
 
     private long findNextMessageOffset(String topic, int queueId, CommitQueue commitQueue, Long offset) {
 
-        long maxQueueOffset = commitQueue.getStartOffset() + commitQueue.getWritePos();
+        long maxQueueOffset = commitQueue == null ? -1 : commitQueue.getStartOffset() + commitQueue.getWritePos();
 
 //        如果当前队列还有存有下一个消息
         if (maxQueueOffset > offset + 1) {
             return offset + 1;
         }
 
-        TreeMap<Long/* queueId */, CommitQueue> queueIndexMap = this.commitQueueMap.get(topic + MessageStoreConfig.TOPIC_GROUP_SEPARATOR + queueId);
+        TreeMap<Long/* queueId */, CommitQueue> queueIndexMap = this.commitQueueMap.get(topic + MessageStoreConfig.TOPIC_QUEUE_SEPARATOR + queueId);
+
+//        无当前消息队列
+        if (queueIndexMap == null) {
+            return -1;
+        }
 
 //        如果没有了，查找至少有着比offset + 1偏移量还大的队列
         Long find = binarySearchOffset(offset + 1, queueIndexMap.descendingKeySet());
@@ -430,7 +443,10 @@ public class CommitStore {
                     .map(log -> log.getStartOffset() + log.getWritePos().get())
                     .orElse(-1L) <= offset
         ) {
-            throw new RuntimeException(String.format("非法偏移量，该偏移量大于最大偏移量 %d", offset));
+            throw new SnailBaseException(
+                String.format("非法偏移量，该偏移量大于最大偏移量 %d", offset),
+                CommandExceptionStateEnums.OFFSET_OVERFLOW
+            );
         }
 
         CommitLog commitLog = firstCommitLogEntry.getValue();
@@ -446,11 +462,11 @@ public class CommitStore {
         commitLog = this.commitLogMap.get(find);
 
         if (commitLog.getStartOffset() > offset) {
-            throw new RuntimeException("该消息可能已被清除");
+            throw new SnailBaseException("该消息可能已被清除", CommandExceptionStateEnums.MESSAGE_GONE);
         }
 
         if (commitLog.getStartOffset() + commitLog.getWritePos().get() <= offset) {
-            throw new RuntimeException("消息文件缺失");
+            throw new SnailBaseException("消息文件缺失", CommandExceptionStateEnums.MESSAGE_MISSING);
         }
 
         return commitLog;
@@ -468,7 +484,11 @@ public class CommitStore {
      */
     private CommitQueue findCommitQueueByOffset(String topic, Integer queueId, Long offset) {
 
-        TreeMap<Long/* queueId */, CommitQueue> queueIndexMap = this.commitQueueMap.get(topic + MessageStoreConfig.TOPIC_GROUP_SEPARATOR + queueId);
+        TreeMap<Long/* queueId */, CommitQueue> queueIndexMap = this.commitQueueMap.get(topic + MessageStoreConfig.TOPIC_QUEUE_SEPARATOR + queueId);
+
+        if (queueIndexMap == null) {
+            return null;
+        }
 
         Map.Entry<Long, CommitQueue> firstEntry = queueIndexMap.firstEntry();
 
@@ -478,7 +498,7 @@ public class CommitStore {
                     .map(queue -> queue.getStartOffset() + queue.getWritePos())
                     .orElse(-1L) < offset
         ) {
-            throw new RuntimeException("非法偏移量，该偏移量大于最大偏移量");
+            throw new OffsetOverflowException();
         }
 
         CommitQueue commitQueue = firstEntry.getValue();
@@ -491,7 +511,7 @@ public class CommitStore {
         commitQueue = queueIndexMap.get(offset - (offset % this.messageStoreConfig.getMaxQueueItemSize()));
 
         if (commitQueue == null) {
-            throw new RuntimeException("该消息已被删除");
+            throw new SnailBaseException("该消息可能已被清除", CommandExceptionStateEnums.MESSAGE_GONE);
         }
 
         return commitQueue;
@@ -631,7 +651,7 @@ public class CommitStore {
                         -1L
                     );
 
-                    String topicQueueKey = topicGroupOffset.getTopic() + MessageStoreConfig.TOPIC_GROUP_SEPARATOR + topicGroupOffset.getQueueId();
+                    String topicQueueKey = topicGroupOffset.getTopic() + MessageStoreConfig.TOPIC_QUEUE_SEPARATOR + topicGroupOffset.getQueueId();
                     Long minOffset = Optional.ofNullable(this.commitQueueMap.get(topicQueueKey))
                         .map(TreeMap::lastKey)
                         .orElse(-1L);

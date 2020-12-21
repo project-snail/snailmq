@@ -43,6 +43,8 @@ public class ByteArrStoreItem extends AbstractStoreItem<byte[]> {
 
         byte[] bodyBytes = new byte[bodyLen];
 
+        byteBuffer.get(bodyBytes);
+
         return new ByteArrStoreItem(bodyBytes);
 
     }

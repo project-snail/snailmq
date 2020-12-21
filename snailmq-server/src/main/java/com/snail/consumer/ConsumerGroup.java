@@ -102,11 +102,11 @@ public class ConsumerGroup implements InitializingBean {
 
     public void updateOffset(String topic, String group, int queueId, Long offset) {
         Map<String, Map<Integer, AtomicLong>> topicQueueMap = consumerOffsetMap.computeIfAbsent(
-            topic,
+            group,
             k -> new ConcurrentHashMap<>()
         );
         Map<Integer, AtomicLong> queueIdOffsetMap = topicQueueMap.computeIfAbsent(
-            group,
+            topic,
             k -> new ConcurrentHashMap<>()
         );
         AtomicLong offsetAtomic = queueIdOffsetMap.computeIfAbsent(queueId, k -> new AtomicLong(offset));
@@ -118,8 +118,8 @@ public class ConsumerGroup implements InitializingBean {
         return topicGroupList.stream()
             .map(
                 topicGroupOffset -> {
-                    Long offset = Optional.ofNullable(this.consumerOffsetMap.get(topicGroupOffset.getTopic()))
-                        .map(map -> map.get(topicGroupOffset.getGroup()))
+                    Long offset = Optional.ofNullable(this.consumerOffsetMap.get(topicGroupOffset.getGroup()))
+                        .map(map -> map.get(topicGroupOffset.getTopic()))
                         .map(map -> map.get(topicGroupOffset.getQueueId()))
                         .map(AtomicLong::get).orElse(-1L);
                     return new TopicGroupOffset(

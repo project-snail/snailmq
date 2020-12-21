@@ -19,12 +19,12 @@ import java.io.File;
 @Data
 @Component
 @Configuration
-@ConfigurationProperties(prefix = "message.store")
+@ConfigurationProperties(prefix = "snail.message.store")
 public class MessageStoreConfig {
 
     public final static int MESSAGE_MAGIC_CODE = 0xababf;
 
-    public static final String TOPIC_GROUP_SEPARATOR = "@";
+    public static final String TOPIC_QUEUE_SEPARATOR = "@";
 
     private Integer commitLogFileSize = 1024 * 1024 * 1024;
 

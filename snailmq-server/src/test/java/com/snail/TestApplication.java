@@ -2,10 +2,18 @@ package com.snail;
 
 import com.snail.commit.CommitLog;
 import com.snail.config.MessageStoreConfig;
-import com.snail.consumer.ConsumerService;
+import com.snail.consumer.MqService;
+import com.snail.consumer.TopicGroupConsumerOffset;
 import com.snail.consumer.TopicGroupOffset;
+import com.snail.message.RebalanceRequest;
+import com.snail.consumer.rebalance.RebalanceResult;
+import com.snail.consumer.rebalance.RebalanceService;
 import com.snail.message.Message;
 import com.snail.message.MessageRes;
+import com.snail.remoting.command.RemotingCommand;
+import com.snail.remoting.command.data.FetchTopicGroupOffsetCommandData;
+import com.snail.remoting.command.data.PushMessageCommandData;
+import com.snail.remoting.command.type.CommandTypeEnums;
 import com.snail.store.ByteBufferStoreItem;
 import com.snail.store.CommitStore;
 import com.snail.util.StoreItemUtil;
@@ -16,19 +24,13 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.util.StopWatch;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -186,7 +188,7 @@ public class TestApplication {
     }
 
     @Autowired
-    private ConsumerService consumerService;
+    private MqService mqService;
 
     @Test
     void testConsumerService() {
@@ -203,9 +205,9 @@ public class TestApplication {
             wrap.slice()
         );
 
-        consumerService.addMessage(message);
+        mqService.addMessage(message);
 
-        MessageRes getMeg = consumerService.getMessage(
+        MessageRes getMeg = mqService.getMessage(
             topic,
             queueId,
             0L
@@ -215,17 +217,17 @@ public class TestApplication {
 
         TopicGroupOffset groupOffset = new TopicGroupOffset(topic, "testGroup", queueId, 0L);
 
-        List<TopicGroupOffset> topicGroupOffsetList = consumerService.getOffset(
-            Collections.singletonList(groupOffset)
-        );
-
-        consumerService.updateOffset(groupOffset);
-
-        topicGroupOffsetList = consumerService.getOffset(
-            Collections.singletonList(groupOffset)
-        );
-
-        System.out.println(topicGroupOffsetList);
+//        List<TopicGroupOffset> topicGroupOffsetList = mqService.getOffset(
+//            Collections.singletonList(groupOffset)
+//        );
+//
+//        mqService.updateOffset(groupOffset);
+//
+//        topicGroupOffsetList = mqService.getOffset(
+//            Collections.singletonList(groupOffset)
+//        );
+//
+//        System.out.println(topicGroupOffsetList);
 
     }
 
@@ -234,7 +236,7 @@ public class TestApplication {
 
         TopicGroupOffset groupOffset = new TopicGroupOffset("testTopic1", "testTopic1", 2, 0L);
 
-        List<TopicGroupOffset> queueMinOffset = this.consumerService.getQueueMinOffset(
+        List<TopicGroupOffset> queueMinOffset = this.mqService.getQueueMinOffset(
             Collections.singletonList(groupOffset)
         );
 
@@ -257,7 +259,7 @@ public class TestApplication {
             message.setFlag(i);
             message.setBody(ByteBuffer.wrap("123".getBytes(StandardCharsets.UTF_8)));
 
-            this.consumerService.addMessage(message);
+            this.mqService.addMessage(message);
         }
 
         long nextMsgOffset;
@@ -266,51 +268,169 @@ public class TestApplication {
         List<TopicGroupOffset> topicGroupOffsetList = Collections.singletonList(findOffset);
 
 //        查找历史消费记录
-        List<TopicGroupOffset> queueMinOffset = this.consumerService.getOffset(topicGroupOffsetList);
+        List<TopicGroupConsumerOffset> queueMinOffset = this.mqService.getOffset(topicGroupOffsetList);
+//
+//        TopicGroupOffset topicGroupOffset = queueMinOffset.get(0);
+//
+////        如果没消费过
+//        if (topicGroupOffset.getOffset() < 0) {
+////            获取当前queue最小偏移的消息
+//            topicGroupOffset = this.commitStore.getQueueMinOffset(topicGroupOffsetList).get(0);
+//            nextMsgOffset = topicGroupOffset.getOffset();
+//        } else {
+////            获取当前消费记录的下一个消息
+//            nextMsgOffset = this.mqService.getNextMsgOffset(Collections.singletonList(topicGroupOffset)).get(0).getOffset();
+//        }
+//
+////        统计消息数
+//        AtomicLong count = new AtomicLong();
+//
+//        while (nextMsgOffset != -1) {
+//
+////            获取消息
+//            MessageRes messageRes = mqService.getMessage(
+//                findOffset.getTopic(),
+//                findOffset.getQueueId(),
+//                nextMsgOffset
+//            );
+//
+//            count.incrementAndGet();
+//
+//            System.out.println(messageRes.getNextMsgOffset());
+//
+////            更新消费偏移量
+//            topicGroupOffset.setOffset(nextMsgOffset);
+//            mqService.updateOffset(topicGroupOffset);
+//
+//            if (messageRes.getNextMsgOffset() == -1) {
+//                System.out.println("消费结束");
+//                System.out.println(count.get());
+//                break;
+//            }
+//
+////            下一个消息的偏移量
+//            nextMsgOffset = messageRes.getNextMsgOffset();
+//
+//        }
 
-        TopicGroupOffset topicGroupOffset = queueMinOffset.get(0);
 
-//        如果没消费过
-        if (topicGroupOffset.getOffset() < 0) {
-//            获取当前queue最小偏移的消息
-            topicGroupOffset = this.commitStore.getQueueMinOffset(topicGroupOffsetList).get(0);
-            nextMsgOffset = topicGroupOffset.getOffset();
-        } else {
-//            获取当前消费记录的下一个消息
-            nextMsgOffset = this.consumerService.getNextMsgOffset(Collections.singletonList(topicGroupOffset)).get(0).getOffset();
-        }
+    }
 
-//        统计消息数
-        AtomicLong count = new AtomicLong();
+    @Test
+    void testFetchCommand() {
 
-        while (nextMsgOffset != -1) {
+        TopicGroupOffset findOffset = new TopicGroupOffset("testTopic1", "testGroup1", 3, -1L);
+        List<TopicGroupOffset> topicGroupOffsetList = Collections.singletonList(findOffset);
 
-//            获取消息
-            MessageRes messageRes = consumerService.getMessage(
-                findOffset.getTopic(),
-                findOffset.getQueueId(),
-                nextMsgOffset
-            );
+        FetchTopicGroupOffsetCommandData fetchTopicGroupOffsetCommandData = new FetchTopicGroupOffsetCommandData(
+            topicGroupOffsetList);
 
-            count.incrementAndGet();
+        RemotingCommand remotingCommand = new RemotingCommand(
+            CommandTypeEnums.FETCH_TOPIC_GROUP_OFFSET,
+            fetchTopicGroupOffsetCommandData
+        );
 
-            System.out.println(messageRes.getNextMsgOffset());
+        ByteBuffer serialize = remotingCommand.serialize();
 
-//            更新消费偏移量
-            topicGroupOffset.setOffset(nextMsgOffset);
-            consumerService.updateOffset(topicGroupOffset);
+        ByteBuffer slice = serialize.slice();
 
-            if (messageRes.getNextMsgOffset() == -1) {
-                System.out.println("消费结束");
-                System.out.println(count.get());
-                break;
-            }
+        RemotingCommand remotingCommand1 = RemotingCommand.deserialize(slice);
 
-//            下一个消息的偏移量
-            nextMsgOffset = messageRes.getNextMsgOffset();
+        ByteBuffer dataByteBuffer = remotingCommand1.getDataByteBuffer();
 
-        }
+        FetchTopicGroupOffsetCommandData deserialize = FetchTopicGroupOffsetCommandData.deserialize(dataByteBuffer);
 
+        System.out.println(deserialize);
+
+    }
+
+    @Test
+    void testPushCommand() {
+
+        Message message = new Message();
+        message.setTopic("topic");
+        message.setKey("key");
+        message.setFlag(0);
+        message.setBody(ByteBuffer.wrap("123".getBytes(StandardCharsets.UTF_8)));
+
+        PushMessageCommandData pushMessageCommandData = new PushMessageCommandData(message);
+
+        RemotingCommand remotingCommand = new RemotingCommand(
+            CommandTypeEnums.PUSH_MESSAGE,
+            pushMessageCommandData
+        );
+
+        ByteBuffer serialize = remotingCommand.serialize();
+
+        ByteBuffer slice = serialize.slice();
+
+        RemotingCommand remotingCommand1 = RemotingCommand.deserialize(slice);
+
+        ByteBuffer dataByteBuffer = remotingCommand1.getDataByteBuffer();
+
+        PushMessageCommandData deserialize = PushMessageCommandData.deserialize(dataByteBuffer);
+
+        System.out.println(deserialize);
+
+        Message deserializeMessage = deserialize.getMessage();
+
+        byte[] bytes = new byte[deserializeMessage.getBody().remaining()];
+
+        deserializeMessage.getBody().get(bytes);
+
+        System.out.println(new String(bytes, StandardCharsets.UTF_8));
+
+    }
+
+    /**
+     * 再均衡
+     * <p>
+     * 1 -> [0,1,2,3,4,5]
+     * 2 -> [0,1,2] 同时 1 -> [3,4,5]
+     * 2离开 需要通知 1 -> [0,1,2,3,4,5]
+     * <p>
+     * 均衡版本号递增
+     * 如果是老的版本号 则直接不接受
+     * 让客户端重新获取queue
+     */
+
+    @Test
+    void testServer() {
+        new Scanner(System.in).nextInt();
+    }
+
+    @Autowired
+    private RebalanceService rebalanceService;
+
+    @Test
+    void testRebalance() {
+
+        RebalanceRequest rebalanceRequest = new RebalanceRequest();
+
+        rebalanceRequest.setTopic("testTopic");
+        rebalanceRequest.setGroup("testGroup");
+
+        String userOne = "cid1";
+
+        rebalanceService.addCid(userOne, Collections.singletonList(rebalanceRequest));
+
+        List<RebalanceResult> rebalanceResult = rebalanceService.getRebalanceResult(
+            userOne,
+            Collections.singletonList(rebalanceRequest)
+        );
+
+        System.out.println(rebalanceResult);
+
+        String userTwo = "cid2";
+
+        rebalanceService.addCid(userTwo, Collections.singletonList(rebalanceRequest));
+
+        List<RebalanceResult> rebalanceResult2 = rebalanceService.getRebalanceResult(
+            userTwo,
+            Collections.singletonList(rebalanceRequest)
+        );
+
+        System.out.println(rebalanceResult2);
 
     }
 }

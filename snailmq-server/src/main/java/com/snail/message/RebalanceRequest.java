@@ -8,18 +8,17 @@ import lombok.NoArgsConstructor;
  * @version V1.0
  * @author: csz
  * @Title
- * @Package: com.snail.message
+ * @Package: com.snail.consumer.rebalance
  * @Description:
- * @date: 2020/12/16
+ * @date: 2020/12/18
  */
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class MessageRes {
+public class RebalanceRequest {
 
-//    源消息
-    private Message message;
+    private String topic;
 
-//    下一个消息的偏移量 没有时为-1
-    private long nextMsgOffset;
+    private String group;
+
 }
