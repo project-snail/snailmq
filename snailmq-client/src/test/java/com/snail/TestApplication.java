@@ -170,17 +170,21 @@ public class TestApplication {
     }
 
     @Test
-    public void testPushMessage() {
+    public void testPushMessage() throws InterruptedException {
         RemotingClientConfig remotingClientConfig = new RemotingClientConfig();
         ConsumerClientServiceImpl service = new ConsumerClientServiceImpl(remotingClientConfig);
 
-        Message message = new Message();
-        message.setTopic("testTopic1");
-        message.setKey("testConsumer");
-        message.setFlag(0);
-        message.setBody(ByteBuffer.wrap("123".getBytes(StandardCharsets.UTF_8)));
-        service.pushMessage(message, false);
-        service.pushMessage(message, true);
+        for (int i = 1; i < 600; i++) {
+            Message message = new Message();
+            message.setTopic("testTopic1");
+            message.setKey("testConsumer");
+            message.setFlag(0);
+            String body = i + "条消息";
+            message.setBody(ByteBuffer.wrap(body.getBytes(StandardCharsets.UTF_8)));
+            service.pushMessage(message, true);
+//            service.pushMessage(message, false);
+//            Thread.sleep(500);
+        }
     }
 
 

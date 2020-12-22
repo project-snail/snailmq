@@ -3,9 +3,7 @@ package com.snail.remoting.netty;
 import com.snail.exception.SnailBaseException;
 import com.snail.remoting.command.RemotingCommand;
 import com.snail.remoting.command.SyncRemotingCommand;
-import com.snail.remoting.command.data.RemotingCommandData;
 import com.snail.remoting.command.type.CommandExceptionStateEnums;
-import com.snail.remoting.command.type.CommandTypeEnums;
 import com.snail.store.IntStoreItem;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -35,6 +33,9 @@ public class SyncRemotingCommandInboundHandler extends SimpleChannelInboundHandl
         RemotingCommand remotingCommand;
         try {
             remotingCommand = remotingCommandInboundHandler.handler(ctx, msg.getRes());
+            if (remotingCommand != null) {
+                ctx.writeAndFlush(new SyncRemotingCommand(remotingCommand, new IntStoreItem(msg.getSyncCode())));
+            }
         } catch (Exception e) {
             log.error("netty处理请求异常", e);
             if (e instanceof SnailBaseException) {
@@ -42,9 +43,7 @@ public class SyncRemotingCommandInboundHandler extends SimpleChannelInboundHandl
             } else {
                 remotingCommand = CommandExceptionStateEnums.buildExRemotingCommand(CommandExceptionStateEnums.ERROR);
             }
-        }
-        if (remotingCommand != null) {
-            ctx.writeAndFlush(new SyncRemotingCommand(remotingCommand, new IntStoreItem(msg.getSyncCode())));
+            ctx.writeAndFlush(remotingCommand);
         }
     }
 

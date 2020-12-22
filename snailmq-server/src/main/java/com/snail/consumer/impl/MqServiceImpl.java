@@ -2,12 +2,14 @@ package com.snail.consumer.impl;
 
 import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.thread.NamedThreadFactory;
+import com.snail.application.event.AddMessageEvent;
 import com.snail.config.MessageStoreConfig;
 import com.snail.consumer.ConsumerGroup;
 import com.snail.consumer.MqService;
 import com.snail.consumer.TopicGroupConsumerOffset;
 import com.snail.consumer.TopicGroupOffset;
 import com.snail.exception.SnailBaseException;
+import com.snail.message.MessageExt;
 import com.snail.message.RebalanceRequest;
 import com.snail.consumer.rebalance.RebalanceResult;
 import com.snail.consumer.rebalance.RebalanceService;
@@ -19,6 +21,7 @@ import com.snail.request.UpdateOffsetRequest;
 import com.snail.store.CommitStore;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
@@ -52,6 +55,9 @@ public class MqServiceImpl implements MqService, InitializingBean {
 
     @Autowired
     private RebalanceService rebalanceService;
+
+    @Autowired
+    private ApplicationEventPublisher applicationEventPublisher;
 
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(
         new NamedThreadFactory("MqServiceScheduledExecutor", false)
@@ -110,7 +116,11 @@ public class MqServiceImpl implements MqService, InitializingBean {
 
     @Override
     public void addMessage(Message message) {
-        commitStore.addMessage(message);
+        MessageExt messageExt = commitStore.addMessage(message);
+//        通知写入
+        applicationEventPublisher.publishEvent(
+            new AddMessageEvent(this, messageExt)
+        );
     }
 
     @Override

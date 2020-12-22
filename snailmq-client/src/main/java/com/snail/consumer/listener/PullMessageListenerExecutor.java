@@ -182,8 +182,8 @@ public class PullMessageListenerExecutor implements Runnable {
 
         this.listener.listener(messageRecord);
 
+        this.consumerOffset.setLastOffset(this.getMessageRequest.getOffset());
         this.consumerOffset.setNextMsgOffset(messageRes.getNextMsgOffset());
-
         this.getMessageRequest.setOffset(messageRes.getNextMsgOffset());
 
     }

@@ -161,7 +161,7 @@ public class CommitStore {
 
     }
 
-    public synchronized void addMessage(Message message) {
+    public synchronized MessageExt addMessage(Message message) {
 
 //        获取可写的log文件
         CommitLog writeCommitLog = getWriteCommitLogWithCreate(message.getSize());
@@ -172,10 +172,7 @@ public class CommitStore {
 //        写入queue索引
         messageExt = commitQueue.addMessageExt(messageExt);
 
-//        通知写入
-        applicationEventPublisher.publishEvent(
-            new AddMessageEvent(this, messageExt)
-        );
+        return messageExt;
 
 //        try {
 //            reentrantLock.lock();
