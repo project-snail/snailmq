@@ -1,5 +1,6 @@
 package com.snail.remoting.command;
 
+import com.snail.remoting.command.exception.SyncRemotingCommandTimeOutException;
 import com.snail.store.AbstractStoreItem;
 import com.snail.store.IntStoreItem;
 import com.snail.util.StoreItemUtil;
@@ -21,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class SyncRemotingCommand extends AbstractStoreItem<RemotingCommand> {
 
-//    TODO 定时清除
+    //    TODO 定时清除
     private final static Map<Integer, SyncRemotingCommand> syncRemotingCommandMap = new ConcurrentHashMap<>();
 
     private final static AtomicInteger syncCodeGenerate = new AtomicInteger();
@@ -35,6 +36,10 @@ public class SyncRemotingCommand extends AbstractStoreItem<RemotingCommand> {
     private IntStoreItem syncCodeStoreItem;
 
     private CountDownLatch latch;
+
+    public SyncRemotingCommand() {
+        this(null);
+    }
 
     public SyncRemotingCommand(RemotingCommand body) {
         this.body = body;
@@ -54,6 +59,10 @@ public class SyncRemotingCommand extends AbstractStoreItem<RemotingCommand> {
     @Override
     public RemotingCommand body() {
         return body;
+    }
+
+    public void setBody(RemotingCommand body) {
+        this.body = body;
     }
 
     @Override
@@ -101,7 +110,10 @@ public class SyncRemotingCommand extends AbstractStoreItem<RemotingCommand> {
 
     public RemotingCommand getRes(long timeout, TimeUnit unit) throws InterruptedException {
         if (res == null) {
-            latch.await(timeout, unit);
+            boolean await = latch.await(timeout, unit);
+            if (!await) {
+                throw new SyncRemotingCommandTimeOutException();
+            }
         }
         return res;
     }

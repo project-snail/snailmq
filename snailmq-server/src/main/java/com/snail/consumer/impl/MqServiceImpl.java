@@ -1,5 +1,6 @@
 package com.snail.consumer.impl;
 
+import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.thread.NamedThreadFactory;
 import com.snail.config.MessageStoreConfig;
 import com.snail.consumer.ConsumerGroup;
@@ -23,6 +24,7 @@ import org.springframework.stereotype.Service;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -96,6 +98,14 @@ public class MqServiceImpl implements MqService, InitializingBean {
                 )
             )
             .collect(Collectors.toList());
+    }
+
+    @Override
+    public TopicGroupConsumerOffset getNextMsgOffset(TopicGroupOffset topicGroup) {
+        return Optional.ofNullable(getNextMsgOffset(Collections.singletonList(topicGroup)))
+            .filter(CollectionUtil::isNotEmpty)
+            .map(list -> list.get(0))
+            .orElse(null);
     }
 
     @Override

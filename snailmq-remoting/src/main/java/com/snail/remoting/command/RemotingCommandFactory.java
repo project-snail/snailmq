@@ -7,6 +7,7 @@ import com.snail.remoting.command.data.*;
 import com.snail.remoting.command.type.CommandTypeEnums;
 import com.snail.request.FetchRebalanceRequest;
 import com.snail.request.GetMessageRequest;
+import com.snail.request.PullNextMessageOffsetRequest;
 import com.snail.request.UpdateOffsetRequest;
 
 import java.util.List;
@@ -68,6 +69,13 @@ public enum RemotingCommandFactory {
         return new RemotingCommand(
             CommandTypeEnums.UPDATE_OFFSET,
             new UpdateOffsetCommandData(request)
+        );
+    }
+
+    public static RemotingCommand pullNextMessageOffset(PullNextMessageOffsetRequest request) {
+        return new RemotingCommand(
+            CommandTypeEnums.PULL_NEXT_MESSAGE_OFFSET,
+            new PullNextMessageOffsetCommandData(request)
         );
     }
 

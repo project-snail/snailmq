@@ -47,11 +47,14 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
 
     private ThreadPoolExecutor executor;
 
+    private RemotingClientConfig clientConfig;
+
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(
         new NamedThreadFactory("ConsumerClientServiceScheduledExecutor", true)
     );
 
     public ConsumerClientServiceImpl(RemotingClientConfig remotingClientConfig) {
+        this.clientConfig = remotingClientConfig;
         this.nettyRemotingClient = new NettyRemotingClient(remotingClientConfig);
         this.pullMessageListenerMap = new ConcurrentHashMap<>();
         this.offsetMap = new ConcurrentHashMap<>();
@@ -253,16 +256,38 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
     }
 
     @Override
-    public RemotingCommand sendSync(RemotingCommand remotingCommand) {
+    public RemotingCommand sendSync(SyncRemotingCommand syncRemotingCommand) {
         Channel channel = nettyRemotingClient.getChannel();
-        SyncRemotingCommand syncRemotingCommand = new SyncRemotingCommand(remotingCommand);
         channel.writeAndFlush(syncRemotingCommand);
         try {
-            return syncRemotingCommand.getRes();
+            return syncRemotingCommand.getRes(this.clientConfig.getSyncMaxWaitTimeSeconds(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             log.error("发送同步请求获取请求被中断", e);
             throw new RuntimeException("发送同步请求获取请求被中断", e);
         }
     }
 
+    @Override
+    public RemotingCommand sendSync(RemotingCommand remotingCommand) {
+        SyncRemotingCommand syncRemotingCommand = new SyncRemotingCommand(remotingCommand);
+        return sendSync(syncRemotingCommand);
+    }
+
+    @Override
+    public RemotingCommand sendSync(RemotingCommand remotingCommand, long time, TimeUnit timeUnit) {
+        SyncRemotingCommand syncRemotingCommand = new SyncRemotingCommand(remotingCommand);
+        return sendSync(syncRemotingCommand, time, timeUnit);
+    }
+
+    @Override
+    public RemotingCommand sendSync(SyncRemotingCommand syncRemotingCommand, long time, TimeUnit timeUnit) {
+        Channel channel = nettyRemotingClient.getChannel();
+        channel.writeAndFlush(syncRemotingCommand);
+        try {
+            return syncRemotingCommand.getRes(time, timeUnit);
+        } catch (InterruptedException e) {
+            log.error("发送同步请求获取请求被中断", e);
+            throw new RuntimeException("发送同步请求获取请求被中断", e);
+        }
+    }
 }

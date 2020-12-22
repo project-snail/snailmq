@@ -29,6 +29,9 @@ public enum CommandTypeEnums {
     //    拉取消息
     PULL_MESSAGE(PullMessageCommandData.class),
 
+    //    被动获取下一条消息偏移量
+    PULL_NEXT_MESSAGE_OFFSET(PullMessageCommandData.class),
+
     //    发送消息
     PUSH_MESSAGE(PushMessageCommandData.class),
 

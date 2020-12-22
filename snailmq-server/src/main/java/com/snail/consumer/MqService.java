@@ -26,6 +26,8 @@ public interface MqService {
 
     List<TopicGroupConsumerOffset> getNextMsgOffset(List<TopicGroupOffset> topicGroupList);
 
+    TopicGroupConsumerOffset getNextMsgOffset(TopicGroupOffset topicGroup);
+
     void addMessage(Message message);
 
     List<TopicGroupConsumerOffset> getOffset(List<TopicGroupOffset> topicGroupList);

@@ -16,6 +16,12 @@ public class MessageExt {
     //在commitLog文件中的偏移量
     private long commitLogOffset;
 
+    //在queue的id
+    private int queueId;
+
+    //在queue中的offset
+    private int queueOffset;
+
     //源消息
     private Message message;
 

@@ -81,7 +81,7 @@ public class CommitQueue {
 
     }
 
-    public void addMessageExt(MessageExt messageExt) {
+    public MessageExt addMessageExt(MessageExt messageExt) {
 
         if (this.selectMappedBuffer.getByteBuffer().remaining() == 0) {
             throw new CommitQueueOverflowException(this);
@@ -101,8 +101,12 @@ public class CommitQueue {
 
         this.selectMappedBuffer.getByteBuffer().put(byteBuffer);
 
+        messageExt.setQueueId(this.queueId);
+        messageExt.setQueueOffset(this.writePos.get());
+
         updateWritePos();
 
+        return messageExt;
     }
 
     public MessageExt getMessageExt(Long offset) {

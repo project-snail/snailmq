@@ -1,5 +1,6 @@
 package com.snail.store;
 
+import com.snail.application.event.AddMessageEvent;
 import com.snail.commit.CommitLog;
 import com.snail.commit.CommitQueue;
 import com.snail.config.MessageStoreConfig;
@@ -15,6 +16,8 @@ import com.snail.util.FileUtil;
 import com.snail.util.Pair;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -34,6 +37,9 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class CommitStore {
+
+    @Autowired
+    private ApplicationEventPublisher applicationEventPublisher;
 
     private TreeMap<Long/* offset */, CommitLog> commitLogMap = null;
 
@@ -164,7 +170,13 @@ public class CommitStore {
 //        获取可写的queue文件
         CommitQueue commitQueue = getWriteCommitQueueWithCreate(message.getTopic(), message.getKey());
 //        写入queue索引
-        commitQueue.addMessageExt(messageExt);
+        messageExt = commitQueue.addMessageExt(messageExt);
+
+//        通知写入
+        applicationEventPublisher.publishEvent(
+            new AddMessageEvent(this, messageExt)
+        );
+
 //        try {
 //            reentrantLock.lock();
 //        } finally {

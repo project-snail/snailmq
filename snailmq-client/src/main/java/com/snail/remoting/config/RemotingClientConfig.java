@@ -27,4 +27,6 @@ public class RemotingClientConfig {
 
     private Integer connectTimeoutMillis = 3000;
 
+    private Integer syncMaxWaitTimeSeconds = 10 * 60
+
 }
