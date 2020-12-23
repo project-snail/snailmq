@@ -50,6 +50,9 @@ public class NettyRemotingServer implements InitializingBean {
     @Autowired
     private SyncRemotingCommandInboundHandler syncRemotingCommandInboundHandler;
 
+    @Autowired
+    private NettyConnectManageHandler nettyConnectManageHandler;
+
     @Override
     public void afterPropertiesSet() throws Exception {
         init();
@@ -111,7 +114,8 @@ public class NettyRemotingServer implements InitializingBean {
                                 new RemotingCommandNettyEncoder(),
                                 new SyncRemotingCommandNettyEncoder(),
                                 remotingCommandInboundHandler,
-                                syncRemotingCommandInboundHandler
+                                syncRemotingCommandInboundHandler,
+                                nettyConnectManageHandler
                             );
                     }
                 }

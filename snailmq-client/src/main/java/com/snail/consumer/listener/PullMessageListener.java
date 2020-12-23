@@ -10,6 +10,7 @@ import com.snail.message.MessageRecord;
  * @Description:
  * @date: 2020/12/17
  */
+@FunctionalInterface
 public interface PullMessageListener {
     void listener(MessageRecord messageRecord);
 }
