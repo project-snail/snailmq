@@ -24,8 +24,6 @@ public interface ConsumerClientService {
 
     void addMsgListener(String topic, String group, PullMessageListener listener);
 
-    void addMsgListener(String topic, PullMessageListener listener);
-
     void startListener();
 
     boolean registerListenerExecutor(PullMessageListener listener, PullMessageListenerExecutor executor);

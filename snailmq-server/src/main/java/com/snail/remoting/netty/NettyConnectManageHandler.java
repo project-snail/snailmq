@@ -3,11 +3,14 @@ package com.snail.remoting.netty;
 import com.snail.application.event.NettyEvent;
 import com.snail.remoting.netty.event.NettyEventTypeEnums;
 import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
+
+import java.net.SocketAddress;
 
 /**
  * @version V1.0
@@ -18,22 +21,23 @@ import org.springframework.stereotype.Component;
  * @date: 2020/12/23
  */
 @Component
+@ChannelHandler.Sharable
 public class NettyConnectManageHandler extends ChannelDuplexHandler {
 
     @Autowired
     private ApplicationEventPublisher applicationEventPublisher;
 
     @Override
-    public void close(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
-        super.close(ctx, promise);
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        super.channelActive(ctx);
         applicationEventPublisher.publishEvent(
-            new NettyEvent(this, ctx.channel(), NettyEventTypeEnums.CLOSE)
+            new NettyEvent(this, ctx.channel(), NettyEventTypeEnums.CONNECT)
         );
     }
 
     @Override
-    public void disconnect(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
-        super.disconnect(ctx, promise);
+    public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
+        super.channelUnregistered(ctx);
         applicationEventPublisher.publishEvent(
             new NettyEvent(this, ctx.channel(), NettyEventTypeEnums.CLOSE)
         );

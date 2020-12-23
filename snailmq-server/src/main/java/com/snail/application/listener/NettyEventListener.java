@@ -10,6 +10,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 
 /**
  * @version V1.0
@@ -39,6 +41,12 @@ public class NettyEventListener {
                 mqService.removeCid(cid.toString());
             }
         }
+
+//        设置用户cid
+        if (NettyEventTypeEnums.CONNECT.equals(nettyEventType)) {
+            channel.attr(AttributeKey.valueOf("cid")).set(UUID.randomUUID().toString());
+        }
+
 
     }
 

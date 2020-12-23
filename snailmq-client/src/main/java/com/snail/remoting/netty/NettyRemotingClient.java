@@ -78,21 +78,26 @@ public class NettyRemotingClient {
                     }
                 }
             );
-        ChannelFuture channelFuture = null;
+
+    }
+
+    private void initChannel() {
         try {
-            channelFuture = this.bootstrap.connect(
+            this.channelFuture = this.bootstrap.connect(
                 remotingClientConfig.getServerAddr(),
                 remotingClientConfig.getServerPort()
             ).sync();
-            this.channelFuture = channelFuture;
             this.channel = channelFuture.channel();
         } catch (InterruptedException e) {
             throw new RuntimeException("链接server时被中断", e);
         }
-
     }
 
     public Channel getChannel() {
+        if (channel != null && channel.isWritable()) {
+            return channel;
+        }
+        initChannel();
         return channel;
     }
 

@@ -1,17 +1,19 @@
-package com.snail.remoting.config;
+package com.snail.config;
 
 import lombok.Data;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
  * @version V1.0
  * @author: csz
  * @Title
- * @Package: com.snail.remoting.config
+ * @Package: com.snail.config
  * @Description:
- * @date: 2020/12/17
+ * @date: 2020/12/23
  */
 @Data
-public class RemotingClientConfig {
+@ConfigurationProperties(prefix = "snail.mq")
+public class ClientProperties {
 
     private Integer serverChannelMaxIdleTimeSeconds = 120;
 
@@ -28,5 +30,7 @@ public class RemotingClientConfig {
     private Integer connectTimeoutMillis = 3000;
 
     private Integer syncMaxWaitTimeSeconds = 10 * 60;
+
+    private String defaultGroup = "foo";
 
 }

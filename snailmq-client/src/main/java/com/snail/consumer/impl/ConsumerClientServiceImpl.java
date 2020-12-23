@@ -60,7 +60,7 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
         this.offsetMap = new ConcurrentHashMap<>();
         this.listenerExecutorMap = new ConcurrentHashMap<>();
         this.executor = new ThreadPoolExecutor(
-            0, remotingClientConfig.getMaxListenerSize(),
+            0, remotingClientConfig.getMaxThreadSize(),
             60, TimeUnit.SECONDS,
             new SynchronousQueue<>(),
             new NamedThreadFactory("snailMqListener", true),
@@ -89,17 +89,13 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
     }
 
     @Override
-    public void addMsgListener(String topic, PullMessageListener listener) {
-
-    }
-
-    @Override
     public void startListener() {
         init();
     }
 
     private void init() {
-        initRegisterCid();
+//        TODO 服务端自动注册cid
+//        initRegisterCid();
         initScheduled();
     }
 
@@ -175,6 +171,11 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
                 );
                 fetchRebalanceRequests.add(fetchRebalanceRequest);
             }
+        }
+
+        if (fetchRebalanceRequests.isEmpty()) {
+            this.rebalanceResultList = Collections.emptyList();
+            return;
         }
 
         RemotingCommand fetchRebalanceCommand = RemotingCommandFactory.fetchRebalanceResult(fetchRebalanceRequests);

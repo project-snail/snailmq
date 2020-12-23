@@ -43,7 +43,7 @@ public class SyncRemotingCommandInboundHandler extends SimpleChannelInboundHandl
             } else {
                 remotingCommand = CommandExceptionStateEnums.buildExRemotingCommand(CommandExceptionStateEnums.ERROR);
             }
-            ctx.writeAndFlush(remotingCommand);
+            ctx.writeAndFlush(new SyncRemotingCommand(remotingCommand, new IntStoreItem(msg.getSyncCode())));
         }
     }
 

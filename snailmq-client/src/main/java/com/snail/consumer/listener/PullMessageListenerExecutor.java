@@ -62,9 +62,8 @@ public class PullMessageListenerExecutor implements Runnable {
 
         this.isRunning = true;
 
-//        TODO 为-1时处理
         try {
-            while (this.isRunning) {
+            while (this.isRunning && !Thread.currentThread().isInterrupted()) {
                 doPull();
             }
         } finally {
@@ -101,10 +100,7 @@ public class PullMessageListenerExecutor implements Runnable {
 
         if (res.isOK()) {
             handleMessage(res);
-            if (consumerOffset.getNextMsgOffset() != -1) {
-                this.consumerOffset.setLastOffset(consumerOffset.getNextMsgOffset());
-                ack();
-            }
+            ack();
             return;
         }
 

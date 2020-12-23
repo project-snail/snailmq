@@ -18,6 +18,7 @@
         <module>snailmq-common</module>
         <module>snailmq-remoting</module>
         <module>snailmq-client</module>
+        <module>snailmq-client-boot-starter</module>
     </modules>
     <packaging>pom</packaging>
 
