@@ -40,4 +40,6 @@ public interface MqService {
 
     List<RebalanceResult> registerCid(String cid, List<RebalanceRequest> rebalanceRequestList);
 
+    void removeCid(String cid);
+
 }

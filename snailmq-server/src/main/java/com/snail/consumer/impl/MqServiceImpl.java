@@ -167,6 +167,11 @@ public class MqServiceImpl implements MqService, InitializingBean {
     }
 
     @Override
+    public void removeCid(String cid) {
+        rebalanceService.removeCid(cid);
+    }
+
+    @Override
     public void afterPropertiesSet() throws Exception {
         scheduledTask();
     }
