@@ -7,7 +7,7 @@ Snail在消息存储上借鉴了RocketMQ，具有CommitLog和CommitQueue。Log�
 ## 功能
 - [x] 消息读写
 - [x] ack
-- [ ] 多种ack模式
+- [x] 多种ack模式
 - [x] 异步同步发送(netty)
 - [ ] 多种刷盘模式
 - [x] key相同，顺序消息
