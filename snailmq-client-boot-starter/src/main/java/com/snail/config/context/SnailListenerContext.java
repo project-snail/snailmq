@@ -1,6 +1,7 @@
 package com.snail.config.context;
 
 import com.snail.config.annotation.SnailListener;
+import com.snail.consumer.ack.AckModeEnums;
 import com.snail.consumer.listener.PullMessageListener;
 import com.snail.message.MessageRecord;
 import lombok.AllArgsConstructor;
@@ -36,6 +37,8 @@ public class SnailListenerContext {
     private String group;
 
     private PullMessageListener messageRecordListener;
+
+    private AckModeEnums ackMode;
 
     public void init() {
         checkMethod(targetMethod);

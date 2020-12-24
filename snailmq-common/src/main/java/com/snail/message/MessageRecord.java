@@ -3,6 +3,7 @@ package com.snail.message;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * @version V1.0
@@ -16,8 +17,14 @@ public class MessageRecord {
 
     private Message message;
 
-    public MessageRecord(Message message) {
+    private long offset;
+
+    private Consumer<Long> ackFun;
+
+    public MessageRecord(Message message, long offset, Consumer<Long> ackFun) {
         this.message = message;
+        this.offset = offset;
+        this.ackFun = ackFun;
     }
 
     public Message getMessage() {
@@ -30,6 +37,10 @@ public class MessageRecord {
             .map(StandardCharsets.UTF_8::decode)
             .map(CharBuffer::toString)
             .orElse(null);
+    }
+
+    public void ack() {
+        ackFun.accept(offset);
     }
 
 }

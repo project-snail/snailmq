@@ -62,6 +62,7 @@ public class SnailListenerAnnotationBeanPostProcessor implements BeanPostProcess
                 context -> consumerClientService.addMsgListener(
                     context.getTopic(),
                     context.getGroup(),
+                    context.getAckMode(),
                     context.getMessageRecordListener()
                 )
             );
@@ -81,6 +82,7 @@ public class SnailListenerAnnotationBeanPostProcessor implements BeanPostProcess
         context.setTopic(snailListener.topic());
         context.setGroup(snailListener.group());
         context.setSnailListener(snailListener);
+        context.setAckMode(snailListener.ackMode());
 
         if (StringUtils.isBlank(snailListener.group())) {
             context.setGroup(clientProperties.getDefaultGroup());

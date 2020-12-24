@@ -1,6 +1,9 @@
 package com.snail.consumer;
 
+import com.snail.consumer.ack.AckModeEnums;
+import com.snail.consumer.config.ConsumerClientConfig;
 import com.snail.consumer.listener.PullMessageListener;
+import com.snail.consumer.listener.PullMessageListenerContext;
 import com.snail.consumer.listener.PullMessageListenerExecutor;
 import com.snail.message.Message;
 import com.snail.remoting.command.RemotingCommand;
@@ -22,13 +25,13 @@ public interface ConsumerClientService {
 
     void pushMessage(Message message, boolean isSync);
 
-    void addMsgListener(String topic, String group, PullMessageListener listener);
+    void addMsgListener(String topic, String group, AckModeEnums ackMode, PullMessageListener listener);
 
     void startListener();
 
-    boolean registerListenerExecutor(PullMessageListener listener, PullMessageListenerExecutor executor);
+    boolean registerListenerExecutor(PullMessageListenerContext context, PullMessageListenerExecutor executor);
 
-    boolean removeListenerExecutor(PullMessageListener listener, PullMessageListenerExecutor executor);
+    boolean removeListenerExecutor(PullMessageListenerContext context, PullMessageListenerExecutor executor);
 
     ChannelFuture sendAsync(RemotingCommand remotingCommand);
 
@@ -39,5 +42,7 @@ public interface ConsumerClientService {
     RemotingCommand sendSync(SyncRemotingCommand syncRemotingCommand);
 
     RemotingCommand sendSync(SyncRemotingCommand syncRemotingCommand, long time, TimeUnit timeUnit);
+
+    ConsumerClientConfig getConsumerClientConfig();
 
 }

@@ -5,7 +5,10 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.snail.consumer.ConsumerClientService;
 import com.snail.consumer.TopicGroupConsumerOffset;
 import com.snail.consumer.TopicGroupOffset;
+import com.snail.consumer.ack.AckModeEnums;
+import com.snail.consumer.config.ConsumerClientConfig;
 import com.snail.consumer.listener.PullMessageListener;
+import com.snail.consumer.listener.PullMessageListenerContext;
 import com.snail.consumer.listener.PullMessageListenerExecutor;
 import com.snail.message.Message;
 import com.snail.remoting.command.RemotingCommand;
@@ -37,9 +40,9 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
 
     private NettyRemotingClient nettyRemotingClient;
 
-    private Map<String/* topic */, Map<String/* group */, PullMessageListener>> pullMessageListenerMap;
+    private Map<String/* topic */, Map<String/* group */, PullMessageListenerContext>> pullMessageListenerMap;
 
-    private Map<PullMessageListener, PullMessageListenerExecutor> listenerExecutorMap;
+    private Map<PullMessageListenerContext, PullMessageListenerExecutor> listenerExecutorMap;
 
     private Map<String/* topic */, Map<String/* group */, Map<Integer/* queueId */, TopicGroupConsumerOffset/* offset */>>> offsetMap;
 
@@ -49,11 +52,14 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
 
     private RemotingClientConfig clientConfig;
 
+    private ConsumerClientConfig consumerClientConfig;
+
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(
         new NamedThreadFactory("ConsumerClientServiceScheduledExecutor", true)
     );
 
-    public ConsumerClientServiceImpl(RemotingClientConfig remotingClientConfig) {
+    public ConsumerClientServiceImpl(RemotingClientConfig remotingClientConfig, ConsumerClientConfig consumerClientConfig) {
+        this.consumerClientConfig = consumerClientConfig;
         this.clientConfig = remotingClientConfig;
         this.nettyRemotingClient = new NettyRemotingClient(remotingClientConfig);
         this.pullMessageListenerMap = new ConcurrentHashMap<>();
@@ -69,6 +75,9 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
         SyncRemotingCommand.setSyncMaxWaitTime(clientConfig.getSyncMaxWaitTimeSeconds() * 1000);
 
     }
+    public ConsumerClientServiceImpl(RemotingClientConfig remotingClientConfig) {
+        this(remotingClientConfig, new ConsumerClientConfig());
+    }
 
     @Override
     public void pushMessage(Message message, boolean isSync) {
@@ -81,13 +90,19 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
     }
 
     @Override
-    public void addMsgListener(String topic, String group, PullMessageListener listener) {
-        Map<String, PullMessageListener> groupMap = pullMessageListenerMap.computeIfAbsent(
+    public void addMsgListener(String topic, String group, AckModeEnums ackMode, PullMessageListener listener) {
+        Map<String, PullMessageListenerContext> groupMap = pullMessageListenerMap.computeIfAbsent(
             topic,
             key -> new ConcurrentHashMap<>()
         );
+        PullMessageListenerContext pullMessageListenerContext = new PullMessageListenerContext(
+            topic,
+            group,
+            listener,
+            ackMode
+        );
 //        TODO rebalance
-        groupMap.put(group, listener);
+        groupMap.put(group, pullMessageListenerContext);
     }
 
     @Override
@@ -116,19 +131,23 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
 
         for (RebalanceResult rebalanceResult : rebalanceResultList) {
 
-            PullMessageListener pullMessageListener = Optional.ofNullable(
+            PullMessageListenerContext pullMessageListenerContext = Optional.ofNullable(
                 this.pullMessageListenerMap.get(rebalanceResult.getTopic())
             )
                 .map(map -> map.get(rebalanceResult.getGroup()))
                 .orElse(null);
 
-            PullMessageListenerExecutor executor = this.listenerExecutorMap.get(pullMessageListener);
+            if (pullMessageListenerContext == null) {
+                continue;
+            }
+
+            PullMessageListenerExecutor executor = this.listenerExecutorMap.get(pullMessageListenerContext);
 
             if (executor != null) {
                 if (executor.isRunning() && rebalanceResult.getVersion().equals(executor.getVersion())) {
                     continue;
                 } else {
-                    removeListenerExecutor(pullMessageListener, executor);
+                    removeListenerExecutor(pullMessageListenerContext, executor);
                 }
             }
 
@@ -142,12 +161,12 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
             }
 
             executor = new PullMessageListenerExecutor(
-                this, rebalanceResult, pullMessageListener, offset
+                this, rebalanceResult, pullMessageListenerContext, offset
             );
 
             this.executor.submit(executor);
 
-            registerListenerExecutor(pullMessageListener, executor);
+            registerListenerExecutor(pullMessageListenerContext, executor);
 
         }
 
@@ -169,8 +188,8 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
 
         List<FetchRebalanceRequest> fetchRebalanceRequests = new LinkedList<>();
 
-        for (Map.Entry<String, Map<String, PullMessageListener>> topicEntry : pullMessageListenerMap.entrySet()) {
-            for (Map.Entry<String, PullMessageListener> groupEntry : topicEntry.getValue().entrySet()) {
+        for (Map.Entry<String, Map<String, PullMessageListenerContext>> topicEntry : pullMessageListenerMap.entrySet()) {
+            for (Map.Entry<String, PullMessageListenerContext> groupEntry : topicEntry.getValue().entrySet()) {
                 FetchRebalanceRequest fetchRebalanceRequest = new FetchRebalanceRequest(
                     topicEntry.getKey(),
                     groupEntry.getKey()
@@ -235,21 +254,21 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
     }
 
     @Override
-    public boolean registerListenerExecutor(PullMessageListener listener, PullMessageListenerExecutor executor) {
-        if (listener == null || executor == null) {
+    public boolean registerListenerExecutor(PullMessageListenerContext context, PullMessageListenerExecutor executor) {
+        if (context == null || executor == null) {
             throw new IllegalArgumentException("listener或executor 不能为空");
         }
-        return this.listenerExecutorMap.put(listener, executor) == null;
+        return this.listenerExecutorMap.put(context, executor) == null;
     }
 
     @Override
-    public boolean removeListenerExecutor(PullMessageListener listener, PullMessageListenerExecutor executor) {
-        if (listener == null || executor == null) {
-            throw new IllegalArgumentException("listener或executor 不能为空");
+    public boolean removeListenerExecutor(PullMessageListenerContext context, PullMessageListenerExecutor executor) {
+        if (context == null || executor == null) {
+            throw new IllegalArgumentException("context或executor 不能为空");
         }
-        synchronized (listener) {
-            if (this.listenerExecutorMap.get(listener) == executor) {
-                this.listenerExecutorMap.remove(listener);
+        synchronized (context) {
+            if (this.listenerExecutorMap.get(context) == executor) {
+                this.listenerExecutorMap.remove(context);
                 return true;
             }
             return false;
@@ -296,5 +315,13 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
             log.error("发送同步请求获取请求被中断", e);
             throw new RuntimeException("发送同步请求获取请求被中断", e);
         }
+    }
+
+    public ConsumerClientConfig getConsumerClientConfig() {
+        return consumerClientConfig;
+    }
+
+    public void setConsumerClientConfig(ConsumerClientConfig consumerClientConfig) {
+        this.consumerClientConfig = consumerClientConfig;
     }
 }

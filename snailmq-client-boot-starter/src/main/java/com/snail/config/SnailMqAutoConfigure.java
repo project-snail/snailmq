@@ -2,6 +2,7 @@ package com.snail.config;
 
 import com.snail.config.template.SnailMqTemplate;
 import com.snail.consumer.ConsumerClientService;
+import com.snail.consumer.config.ConsumerClientConfig;
 import com.snail.consumer.impl.ConsumerClientServiceImpl;
 import com.snail.remoting.config.RemotingClientConfig;
 import org.springframework.boot.autoconfigure.AutoConfigureOrder;
@@ -32,17 +33,22 @@ public class SnailMqAutoConfigure {
     @Bean
     public ConsumerClientService consumerClientService(ClientProperties properties) {
 
-        RemotingClientConfig config = new RemotingClientConfig();
-        config.setServerChannelMaxIdleTimeSeconds(properties.getServerChannelMaxIdleTimeSeconds());
-        config.setMaxThreadSize(properties.getMaxThreadSize());
-        config.setFrameMaxLength(properties.getFrameMaxLength());
-        config.setWorkThreadSize(properties.getWorkThreadSize());
-        config.setServerAddr(properties.getServerAddr());
-        config.setServerPort(properties.getServerPort());
-        config.setConnectTimeoutMillis(properties.getConnectTimeoutMillis());
-        config.setSyncMaxWaitTimeSeconds(properties.getSyncMaxWaitTimeSeconds());
+        RemotingClientConfig remotingClientConfig = new RemotingClientConfig();
+        remotingClientConfig.setServerChannelMaxIdleTimeSeconds(properties.getServerChannelMaxIdleTimeSeconds());
+        remotingClientConfig.setMaxThreadSize(properties.getMaxThreadSize());
+        remotingClientConfig.setFrameMaxLength(properties.getFrameMaxLength());
+        remotingClientConfig.setWorkThreadSize(properties.getWorkThreadSize());
+        remotingClientConfig.setServerAddr(properties.getServerAddr());
+        remotingClientConfig.setServerPort(properties.getServerPort());
+        remotingClientConfig.setConnectTimeoutMillis(properties.getConnectTimeoutMillis());
+        remotingClientConfig.setSyncMaxWaitTimeSeconds(properties.getSyncMaxWaitTimeSeconds());
 
-        return new ConsumerClientServiceImpl(config);
+        ConsumerClientConfig consumerClientConfig = new ConsumerClientConfig();
+        consumerClientConfig.setAckCount(properties.getAckCount());
+        consumerClientConfig.setAckMode(properties.getAckMode());
+        consumerClientConfig.setAckTimeSeconds(properties.getAckTimeSeconds());
+
+        return new ConsumerClientServiceImpl(remotingClientConfig, consumerClientConfig);
 
     }
 

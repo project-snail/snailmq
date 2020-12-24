@@ -1,5 +1,6 @@
 package com.snail.config;
 
+import com.snail.consumer.ack.AckModeEnums;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -32,5 +33,11 @@ public class ClientProperties {
     private Integer syncMaxWaitTimeSeconds = 10 * 60;
 
     private String defaultGroup = "foo";
+
+    private Integer ackTimeSeconds = 10 * 60;
+
+    private Integer ackCount = 1;
+
+    private AckModeEnums ackMode = AckModeEnums.RECORD;
 
 }

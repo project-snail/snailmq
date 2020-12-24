@@ -1,5 +1,7 @@
 package com.snail.config.annotation;
 
+import com.snail.consumer.ack.AckModeEnums;
+
 import java.lang.annotation.*;
 
 /**
@@ -15,10 +17,13 @@ import java.lang.annotation.*;
 @Documented
 public @interface SnailListener {
 
-//    主题
+    //  主题
     String topic();
 
-//    组名 为空的话 使用默认组名
+    //  组名 为空的话 使用默认组名
     String group() default "";
+
+    //  ack模式
+    AckModeEnums ackMode() default AckModeEnums.RECORD;
 
 }

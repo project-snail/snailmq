@@ -3,6 +3,8 @@ package com.snail.consumer.listener;
 import com.snail.consumer.ConsumerClientService;
 import com.snail.consumer.TopicGroupConsumerOffset;
 import com.snail.consumer.TopicGroupOffset;
+import com.snail.consumer.ack.AckModeEnums;
+import com.snail.consumer.ack.handler.AckHandler;
 import com.snail.message.MessageRecord;
 import com.snail.message.MessageRes;
 import com.snail.remoting.command.RemotingCommand;
@@ -19,6 +21,7 @@ import com.snail.result.RebalanceResult;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 
 /**
@@ -38,16 +41,31 @@ public class PullMessageListenerExecutor implements Runnable {
 
     private final PullMessageListener listener;
 
+    private final PullMessageListenerContext pullMessageListenerContext;
+
     private GetMessageRequest getMessageRequest;
 
     private TopicGroupConsumerOffset consumerOffset;
 
     private volatile boolean isRunning = false;
 
-    public PullMessageListenerExecutor(ConsumerClientService service, RebalanceResult rebalanceResult, PullMessageListener listener, TopicGroupConsumerOffset nowOffset) {
+    private AckHandler ackHandler;
+
+    private Consumer<Long> ackFun;
+
+    private AckModeEnums ackMode;
+
+    public PullMessageListenerExecutor(
+        ConsumerClientService service,
+        RebalanceResult rebalanceResult,
+        PullMessageListenerContext pullMessageListenerContext,
+        TopicGroupConsumerOffset nowOffset
+    ) {
         this.service = service;
         this.rebalanceResult = rebalanceResult;
-        this.listener = listener;
+        this.pullMessageListenerContext = pullMessageListenerContext;
+        this.listener = pullMessageListenerContext.getListener();
+        this.ackMode = pullMessageListenerContext.getAckMode();
         this.consumerOffset = nowOffset;
         getMessageRequest = new GetMessageRequest();
         getMessageRequest.setTopic(rebalanceResult.getTopic());
@@ -55,6 +73,9 @@ public class PullMessageListenerExecutor implements Runnable {
         getMessageRequest.setQueueId(rebalanceResult.getQueueId());
         getMessageRequest.setOffset(consumerOffset.getNextMsgOffset());
         getMessageRequest.setVersion(rebalanceResult.getVersion());
+
+        initAck();
+
     }
 
     @Override
@@ -68,7 +89,7 @@ public class PullMessageListenerExecutor implements Runnable {
             }
         } finally {
             this.isRunning = false;
-            service.removeListenerExecutor(listener, this);
+            service.removeListenerExecutor(pullMessageListenerContext, this);
         }
 
     }
@@ -100,7 +121,7 @@ public class PullMessageListenerExecutor implements Runnable {
         }
 
         if (res.isOK()) {
-            handleMessage(res);
+            handleMessage(res, getMessageRequest.getOffset());
             ack();
             return;
         }
@@ -157,31 +178,54 @@ public class PullMessageListenerExecutor implements Runnable {
 
     private void ack() {
 
-//        TODO ack策略
-        UpdateOffsetRequest request = new UpdateOffsetRequest();
-        request.setTopic(this.consumerOffset.getTopic());
-        request.setGroup(this.consumerOffset.getGroup());
-        request.setQueueId(this.consumerOffset.getQueueId());
-        request.setOffset(this.consumerOffset.getLastOffset());
+        if (AckModeEnums.MANUAL.equals(this.ackMode)) {
+            return;
+        }
 
-        RemotingCommand remotingCommand = RemotingCommandFactory.updateOffset(request);
-        this.service.sendAsync(remotingCommand);
+        this.ackHandler.ack(this.consumerOffset.getLastOffset());
+
+////        TODO ack策略
+//        UpdateOffsetRequest request = new UpdateOffsetRequest();
+//        request.setTopic(this.consumerOffset.getTopic());
+//        request.setGroup(this.consumerOffset.getGroup());
+//        request.setQueueId(this.consumerOffset.getQueueId());
+//        request.setOffset(this.consumerOffset.getLastOffset());
+//
+//        RemotingCommand remotingCommand = RemotingCommandFactory.updateOffset(request);
+//        this.service.sendAsync(remotingCommand);
 
     }
 
-    private void handleMessage(RemotingCommand res) {
+    private void handleMessage(RemotingCommand res, long offset) {
 
         PullMessageResultCommandData deserialize = PullMessageResultCommandData.deserialize(res.getDataByteBuffer());
 
         MessageRes messageRes = deserialize.getMessageRes();
 
-        MessageRecord messageRecord = new MessageRecord(messageRes.getMessage());
+        MessageRecord messageRecord = new MessageRecord(messageRes.getMessage(), offset, this.ackFun);
 
         this.listener.listener(messageRecord);
 
         this.consumerOffset.setLastOffset(this.getMessageRequest.getOffset());
         this.consumerOffset.setNextMsgOffset(messageRes.getNextMsgOffset());
         this.getMessageRequest.setOffset(messageRes.getNextMsgOffset());
+
+    }
+
+    private void initAck() {
+        this.ackHandler = ackMode.createAckHandler(
+            this.service,
+            this.consumerOffset.getTopic(),
+            this.consumerOffset.getGroup(),
+            this.consumerOffset.getQueueId()
+        );
+//        手动提交
+        if (AckModeEnums.MANUAL.equals(ackMode)) {
+            this.ackFun = offset -> this.ackHandler.ack(offset);
+        } else {
+            this.ackFun = offset -> {
+            };
+        }
 
     }
 

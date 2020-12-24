@@ -2,6 +2,8 @@ package com.snail;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.snail.consumer.ConsumerClientService;
+import com.snail.consumer.ack.AckModeEnums;
+import com.snail.consumer.config.ConsumerClientConfig;
 import com.snail.consumer.impl.ConsumerClientServiceImpl;
 import com.snail.consumer.listener.PullMessageListener;
 import com.snail.message.Message;
@@ -163,8 +165,13 @@ public class TestApplication {
     @Test
     public void testSetupClient() {
         RemotingClientConfig remotingClientConfig = new RemotingClientConfig();
-        ConsumerClientServiceImpl service = new ConsumerClientServiceImpl(remotingClientConfig);
-        service.addMsgListener("testTopic1", "testConsumer", messageRecord -> System.out.println(messageRecord.getBody()));
+        ConsumerClientConfig consumerClientConfig = new ConsumerClientConfig();
+        consumerClientConfig.setAckCount(10);
+        ConsumerClientServiceImpl service = new ConsumerClientServiceImpl(remotingClientConfig, consumerClientConfig);
+        service.addMsgListener(
+            "testTopic1", "testConsumer",
+            AckModeEnums.COUNT_TIME, messageRecord -> System.out.println(messageRecord.getBody())
+        );
         service.startListener();
         new Scanner(System.in).nextInt();
     }
@@ -186,7 +193,6 @@ public class TestApplication {
 //            Thread.sleep(500);
         }
     }
-
 
 
 }
