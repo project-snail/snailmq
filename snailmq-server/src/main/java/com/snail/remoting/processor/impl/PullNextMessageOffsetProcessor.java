@@ -15,9 +15,12 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.util.ConcurrentReferenceHashMap;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @version V1.0
@@ -30,13 +33,21 @@ import java.util.Map;
 @Component
 public class PullNextMessageOffsetProcessor implements RemotingCommandProcessor {
 
-    @Autowired
-    private MqService mqService;
+    private final MqService mqService;
 
     private static final String MAP_SEPARATOR = "@";
 
-    //    TODO 清理
-    private static final Map<String, PullNextMessageOffsetRequestHolder> requestHolderMap = new HashMap<>();
+    private static final Map<String, PullNextMessageOffsetRequestHolder> requestHolderMap = new ConcurrentReferenceHashMap<>();
+
+    private static final ConcurrentSkipListMap<PullNextMessageOffsetRequestHolder, String> requestHolderClearMap = new ConcurrentSkipListMap<>(
+        Comparator.comparing(PullNextMessageOffsetRequestHolder::getTime)
+    );
+
+    @Autowired
+    public PullNextMessageOffsetProcessor(MqService mqService) {
+        this.mqService = mqService;
+        this.mqService.registerScheduleAtFixedRate(this::clearUpRequestHolder, 1, 1, TimeUnit.MINUTES);
+    }
 
     @Override
     public CommandTypeEnums supportType() {
@@ -54,11 +65,12 @@ public class PullNextMessageOffsetProcessor implements RemotingCommandProcessor 
             PullNextMessageOffsetRequestHolder requestHolder = new PullNextMessageOffsetRequestHolder();
             requestHolder.setChannel(ctx.channel());
             requestHolder.setRequest(request);
-            requestHolder.setTime(System.currentTimeMillis());
-            requestHolderMap.put(
-                buildKey(request.getTopic(), request.getQueueId()),
-                requestHolder
-            );
+//            requestHolder.setTime();
+            String buildKey = buildKey(request.getTopic(), request.getQueueId());
+//            放入map 等待下次激活
+            requestHolderMap.put(buildKey, requestHolder);
+//            这个map是用来清理作用的
+            requestHolderClearMap.put(requestHolder, buildKey);
             return null;
         }
 
@@ -115,5 +127,25 @@ public class PullNextMessageOffsetProcessor implements RemotingCommandProcessor 
         return topic + MAP_SEPARATOR + queueId;
     }
 
+    private void clearUpRequestHolder() {
+
+        Map.Entry<PullNextMessageOffsetRequestHolder, String> firstEntry = requestHolderClearMap.firstEntry();
+        while (firstEntry != null) {
+
+            PullNextMessageOffsetRequestHolder holder = firstEntry.getKey();
+
+            long holderTime = holder.getTime();
+
+//            如果这个请求已经15分钟没响应了 清除它
+            if (holderTime > 15 * 60 * 1000 || holder.isNotify()) {
+                requestHolderClearMap.remove(holder);
+                requestHolderMap.remove(firstEntry.getValue());
+            }
+
+            firstEntry = requestHolderClearMap.firstEntry();
+
+        }
+
+    }
 
 }

@@ -1,15 +1,15 @@
 package com.snail.remoting.command;
 
+import cn.hutool.core.thread.NamedThreadFactory;
 import com.snail.remoting.command.exception.SyncRemotingCommandTimeOutException;
 import com.snail.store.AbstractStoreItem;
 import com.snail.store.IntStoreItem;
 import com.snail.util.StoreItemUtil;
 
 import java.nio.ByteBuffer;
+import java.util.Comparator;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -22,8 +22,27 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class SyncRemotingCommand extends AbstractStoreItem<RemotingCommand> {
 
-    //    TODO 定时清除
+    private static final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(
+        new NamedThreadFactory("SyncRemotingCommandClearScheduledExecutor", false)
+    );
+
     private final static Map<Integer, SyncRemotingCommand> syncRemotingCommandMap = new ConcurrentHashMap<>();
+
+    private final static ConcurrentSkipListMap<SyncRemotingCommand, Integer> syncRemotingCommandClearMap = new ConcurrentSkipListMap<>(
+        Comparator.comparing(SyncRemotingCommand::getTime)
+    );
+
+    private static long syncMaxWaitTime = 15 * 60 * 1000;
+
+    static {
+//        清除过久无响应的请求
+        scheduledExecutorService.scheduleWithFixedDelay(
+            SyncRemotingCommand::clearUpSyncRequest,
+            1,
+            1,
+            TimeUnit.MINUTES
+        );
+    }
 
     private final static AtomicInteger syncCodeGenerate = new AtomicInteger();
 
@@ -36,6 +55,8 @@ public class SyncRemotingCommand extends AbstractStoreItem<RemotingCommand> {
     private IntStoreItem syncCodeStoreItem;
 
     private CountDownLatch latch;
+
+    private long time = System.currentTimeMillis();
 
     public SyncRemotingCommand() {
         this(null);
@@ -151,6 +172,37 @@ public class SyncRemotingCommand extends AbstractStoreItem<RemotingCommand> {
 
     public static SyncRemotingCommand getCommand(Integer syncCode) {
         return syncRemotingCommandMap.get(syncCode);
+    }
+
+    public long getTime() {
+        return time;
+    }
+
+    public static long getSyncMaxWaitTime() {
+        return syncMaxWaitTime;
+    }
+
+    public static void setSyncMaxWaitTime(long syncMaxWaitTime) {
+        SyncRemotingCommand.syncMaxWaitTime = syncMaxWaitTime;
+    }
+
+    private static void clearUpSyncRequest() {
+        Map.Entry<SyncRemotingCommand, Integer> firstEntry = syncRemotingCommandClearMap.firstEntry();
+        while (firstEntry != null) {
+
+            SyncRemotingCommand holder = firstEntry.getKey();
+
+            long holderTime = holder.getTime();
+
+//            如果这个请求已经超时没响应了 清除它
+            if (holderTime > syncMaxWaitTime) {
+                syncRemotingCommandClearMap.remove(holder);
+                syncRemotingCommandMap.remove(firstEntry.getValue());
+            }
+
+            firstEntry = syncRemotingCommandClearMap.firstEntry();
+
+        }
     }
 
 }

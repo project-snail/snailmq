@@ -66,6 +66,8 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
             new NamedThreadFactory("snailMqListener", true),
             new ThreadPoolExecutor.AbortPolicy()
         );
+        SyncRemotingCommand.setSyncMaxWaitTime(clientConfig.getSyncMaxWaitTimeSeconds() * 1000);
+
     }
 
     @Override
@@ -134,6 +136,10 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
                 .map(map -> map.get(rebalanceResult.getGroup()))
                 .map(map -> map.get(rebalanceResult.getQueueId()))
                 .orElse(null);
+
+            if (offset == null) {
+                continue;
+            }
 
             executor = new PullMessageListenerExecutor(
                 this, rebalanceResult, pullMessageListener, offset

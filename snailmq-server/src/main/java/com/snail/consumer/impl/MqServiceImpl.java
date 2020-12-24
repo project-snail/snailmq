@@ -1,7 +1,6 @@
 package com.snail.consumer.impl;
 
 import cn.hutool.core.collection.CollectionUtil;
-import cn.hutool.core.thread.NamedThreadFactory;
 import com.snail.application.event.AddMessageEvent;
 import com.snail.config.MessageStoreConfig;
 import com.snail.consumer.ConsumerGroup;
@@ -28,8 +27,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -58,10 +55,6 @@ public class MqServiceImpl implements MqService, InitializingBean {
 
     @Autowired
     private ApplicationEventPublisher applicationEventPublisher;
-
-    private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(
-        new NamedThreadFactory("MqServiceScheduledExecutor", false)
-    );
 
     @Override
     public MessageRes getMessage(String topic, int queueId, long offset) {
@@ -177,7 +170,7 @@ public class MqServiceImpl implements MqService, InitializingBean {
     }
 
     private void scheduledTask() {
-        scheduledExecutorService.scheduleAtFixedRate(
+        this.messageStoreConfig.getScheduledExecutorService().scheduleAtFixedRate(
             consumerGroup::persistence,
             1000 * 5,
             this.messageStoreConfig.getPersistenceConsumerGroupOffsetInterval(),
@@ -185,4 +178,8 @@ public class MqServiceImpl implements MqService, InitializingBean {
         );
     }
 
+    @Override
+    public void registerScheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
+        this.messageStoreConfig.getScheduledExecutorService().scheduleWithFixedDelay(command, initialDelay, period, unit);
+    }
 }

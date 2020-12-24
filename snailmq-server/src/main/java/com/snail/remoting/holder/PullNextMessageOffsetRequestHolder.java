@@ -17,7 +17,7 @@ public class PullNextMessageOffsetRequestHolder {
 
     private PullNextMessageOffsetRequest request;
 
-    private long time;
+    private long time = System.currentTimeMillis();
 
     private volatile boolean isNotify = false;
 

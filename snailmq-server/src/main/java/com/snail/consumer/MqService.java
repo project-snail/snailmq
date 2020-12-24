@@ -9,6 +9,7 @@ import com.snail.request.UpdateOffsetRequest;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @version V1.0
@@ -41,5 +42,7 @@ public interface MqService {
     List<RebalanceResult> registerCid(String cid, List<RebalanceRequest> rebalanceRequestList);
 
     void removeCid(String cid);
+
+    void registerScheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit);
 
 }

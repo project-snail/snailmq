@@ -1,11 +1,14 @@
 package com.snail.config;
 
+import cn.hutool.core.thread.NamedThreadFactory;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 
 
 /**
@@ -43,5 +46,9 @@ public class MessageStoreConfig {
     public final String queueDirPath = "queue" + File.separator;
 
     public final String groupOffsetConfigPath = "config" + File.separator + "groupOffsetConfig.json";
+
+    private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(
+        new NamedThreadFactory("SnailMqScheduledExecutor", false)
+    );
 
 }
