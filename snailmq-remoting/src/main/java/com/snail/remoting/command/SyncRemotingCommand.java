@@ -162,6 +162,7 @@ public class SyncRemotingCommand extends AbstractStoreItem<RemotingCommand> {
             syncRemotingCommand.setRes(this.res);
             syncRemotingCommand.clearBody();
             syncRemotingCommandMap.remove(this.syncCode);
+            syncRemotingCommandClearMap.remove(syncRemotingCommand);
         }
 
     }
@@ -188,6 +189,9 @@ public class SyncRemotingCommand extends AbstractStoreItem<RemotingCommand> {
 
     private static void clearUpSyncRequest() {
         Map.Entry<SyncRemotingCommand, Integer> firstEntry = syncRemotingCommandClearMap.firstEntry();
+
+        long currentTimeMillis = System.currentTimeMillis();
+
         while (firstEntry != null) {
 
             SyncRemotingCommand holder = firstEntry.getKey();
@@ -195,9 +199,12 @@ public class SyncRemotingCommand extends AbstractStoreItem<RemotingCommand> {
             long holderTime = holder.getTime();
 
 //            如果这个请求已经超时没响应了 清除它
-            if (holderTime > syncMaxWaitTime) {
+            if (currentTimeMillis - holderTime > syncMaxWaitTime) {
                 syncRemotingCommandClearMap.remove(holder);
                 syncRemotingCommandMap.remove(firstEntry.getValue());
+            } else {
+//                有序map 后面的都是还没超时的
+                break;
             }
 
             firstEntry = syncRemotingCommandClearMap.firstEntry();

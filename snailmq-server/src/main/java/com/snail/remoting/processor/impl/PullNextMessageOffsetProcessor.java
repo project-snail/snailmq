@@ -119,6 +119,7 @@ public class PullNextMessageOffsetProcessor implements RemotingCommandProcessor 
                     )
                 );
             requestHolderMap.remove(pullHolderKey);
+            requestHolderClearMap.remove(requestHolder);
             requestHolder.setNotify(true);
         }
     }
@@ -129,20 +130,29 @@ public class PullNextMessageOffsetProcessor implements RemotingCommandProcessor 
 
     private void clearUpRequestHolder() {
 
-        Map.Entry<PullNextMessageOffsetRequestHolder, String> firstEntry = requestHolderClearMap.firstEntry();
-        while (firstEntry != null) {
+        Map.Entry<PullNextMessageOffsetRequestHolder, String> firstEntry;
+
+        long currentTimeMillis = System.currentTimeMillis();
+
+        while ((firstEntry = requestHolderClearMap.firstEntry()) != null) {
 
             PullNextMessageOffsetRequestHolder holder = firstEntry.getKey();
 
             long holderTime = holder.getTime();
 
-//            如果这个请求已经15分钟没响应了 清除它
-            if (holderTime > 15 * 60 * 1000 || holder.isNotify()) {
+            if (holder.isNotify()) {
                 requestHolderClearMap.remove(holder);
                 requestHolderMap.remove(firstEntry.getValue());
+                continue;
             }
 
-            firstEntry = requestHolderClearMap.firstEntry();
+//            如果这个请求已经15分钟没响应了 清除它
+            if (currentTimeMillis - holderTime > 15 * 60 * 1000) {
+                requestHolderClearMap.remove(holder);
+                requestHolderMap.remove(firstEntry.getValue());
+            } else {
+                break;
+            }
 
         }
 
