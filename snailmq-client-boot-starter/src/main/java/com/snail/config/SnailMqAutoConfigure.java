@@ -6,6 +6,7 @@ import com.snail.consumer.config.ConsumerClientConfig;
 import com.snail.consumer.impl.ConsumerClientServiceImpl;
 import com.snail.remoting.config.RemotingClientConfig;
 import org.springframework.boot.autoconfigure.AutoConfigureOrder;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -24,9 +25,9 @@ import org.springframework.core.Ordered;
 @Configuration
 @EnableConfigurationProperties(ClientProperties.class)
 @AutoConfigureOrder(Ordered.LOWEST_PRECEDENCE)
+@ConditionalOnBean(SnailListenerRunner.class)
 @Import({
-    SnailListenerAnnotationBeanPostProcessor.class,
-    SnailListenerRunner.class
+    SnailListenerAnnotationBeanPostProcessor.class
 })
 public class SnailMqAutoConfigure {
 

@@ -1,5 +1,6 @@
 package com.snail.config.annotation;
 
+import com.snail.config.SnailListenerRunner;
 import com.snail.config.SnailMqAutoConfigure;
 import org.springframework.context.annotation.Import;
 
@@ -16,6 +17,6 @@ import java.lang.annotation.*;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-@Import(SnailMqAutoConfigure.class)
+@Import(SnailListenerRunner.class)
 public @interface EnableSnailMq {
 }
