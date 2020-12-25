@@ -6,6 +6,7 @@ import com.snail.remoting.command.data.RemotingCommandData;
 import com.snail.remoting.command.type.CommandExceptionStateEnums;
 import com.snail.remoting.command.type.CommandTypeEnums;
 import com.snail.remoting.processor.RemotingCommandProcessor;
+import com.snail.util.NettyUtil;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -42,7 +43,7 @@ public class RemotingCommandInboundHandler extends SimpleChannelInboundHandler<R
     protected void channelRead0(ChannelHandlerContext ctx, RemotingCommand msg) throws Exception {
         RemotingCommand remotingCommand = handler(ctx, msg);
         if (remotingCommand != null) {
-            ctx.writeAndFlush(remotingCommand);
+            NettyUtil.safeWriteAndFlush(ctx.channel(), msg);
         }
     }
 
@@ -63,9 +64,6 @@ public class RemotingCommandInboundHandler extends SimpleChannelInboundHandler<R
         }
         RemotingCommand remotingCommand = new RemotingCommand(CommandTypeEnums.ERROR, RemotingCommandData.OK);
         remotingCommand.setExceptionState(exceptionState);
-        Channel channel = ctx.channel();
-        if (channel.isWritable()) {
-            channel.writeAndFlush(remotingCommand);
-        }
+        NettyUtil.safeWriteAndFlush(ctx.channel(), remotingCommand);
     }
 }

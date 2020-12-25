@@ -62,6 +62,8 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
         this.consumerClientConfig = consumerClientConfig;
         this.clientConfig = remotingClientConfig;
         this.nettyRemotingClient = new NettyRemotingClient(remotingClientConfig);
+//        设置每个channel初始化都会注册cid
+        this.nettyRemotingClient.addChannelAfterInitHook(channel -> initRegisterCid());
         this.pullMessageListenerMap = new ConcurrentHashMap<>();
         this.offsetMap = new ConcurrentHashMap<>();
         this.listenerExecutorMap = new ConcurrentHashMap<>();
@@ -176,12 +178,7 @@ public class ConsumerClientServiceImpl implements ConsumerClientService {
         RemotingCommand registerCidCommand = RemotingCommandFactory.registerCid(
             UUID.randomUUID().toString()
         );
-        try {
-            sendAsync(registerCidCommand).sync();
-        } catch (InterruptedException e) {
-            log.error("initRegisterCid 被中断", e);
-            throw new RuntimeException("initRegisterCid 被中断", e);
-        }
+        sendSync(registerCidCommand);
     }
 
     private void initRebalance() {

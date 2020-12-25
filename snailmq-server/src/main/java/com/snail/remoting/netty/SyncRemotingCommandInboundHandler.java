@@ -5,6 +5,7 @@ import com.snail.remoting.command.RemotingCommand;
 import com.snail.remoting.command.SyncRemotingCommand;
 import com.snail.remoting.command.type.CommandExceptionStateEnums;
 import com.snail.store.IntStoreItem;
+import com.snail.util.NettyUtil;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -33,9 +34,10 @@ public class SyncRemotingCommandInboundHandler extends SimpleChannelInboundHandl
         RemotingCommand remotingCommand;
         try {
             remotingCommand = remotingCommandInboundHandler.handler(ctx, msg.getRes());
-            if (remotingCommand != null) {
-                ctx.writeAndFlush(new SyncRemotingCommand(remotingCommand, new IntStoreItem(msg.getSyncCode())));
+            if (remotingCommand == null) {
+                return;
             }
+            NettyUtil.safeWriteAndFlush(ctx.channel(), remotingCommand);
         } catch (Exception e) {
             log.error("netty处理请求异常", e);
             if (e instanceof SnailBaseException) {
@@ -43,7 +45,10 @@ public class SyncRemotingCommandInboundHandler extends SimpleChannelInboundHandl
             } else {
                 remotingCommand = CommandExceptionStateEnums.buildExRemotingCommand(CommandExceptionStateEnums.ERROR);
             }
-            ctx.writeAndFlush(new SyncRemotingCommand(remotingCommand, new IntStoreItem(msg.getSyncCode())));
+            NettyUtil.safeWriteAndFlush(
+                ctx.channel(),
+                new SyncRemotingCommand(remotingCommand, new IntStoreItem(msg.getSyncCode()))
+            );
         }
     }
 

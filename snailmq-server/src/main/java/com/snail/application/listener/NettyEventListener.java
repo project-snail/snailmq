@@ -42,10 +42,10 @@ public class NettyEventListener {
             }
         }
 
-//        设置用户cid
-        if (NettyEventTypeEnums.CONNECT.equals(nettyEventType)) {
-            channel.attr(AttributeKey.valueOf("cid")).set(UUID.randomUUID().toString());
-        }
+////        还是客户端设置 如果第二个请求在设置之前就来了 就会有问题
+//        if (NettyEventTypeEnums.CONNECT.equals(nettyEventType)) {
+//            channel.attr(AttributeKey.valueOf("cid")).set(UUID.randomUUID().toString());
+//        }
 
 
     }

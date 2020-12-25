@@ -13,6 +13,10 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.concurrent.DefaultEventExecutorGroup;
 
+import java.util.LinkedList;
+import java.util.List;
+import java.util.function.Consumer;
+
 
 /**
  * @version V1.0
@@ -37,6 +41,8 @@ public class NettyRemotingClient {
     private DefaultEventExecutorGroup defaultEventExecutorGroup;
 
     private RemotingClientConfig remotingClientConfig;
+
+    private List<Consumer<Channel>> channelAfterInitHook = new LinkedList<>();
 
     public NettyRemotingClient(RemotingClientConfig remotingClientConfig) {
         this.remotingClientConfig = remotingClientConfig;
@@ -88,9 +94,14 @@ public class NettyRemotingClient {
                 remotingClientConfig.getServerPort()
             ).sync();
             this.channel = channelFuture.channel();
+            this.channelAfterInitHook.forEach(channelConsumer -> channelConsumer.accept(channel));
         } catch (InterruptedException e) {
             throw new RuntimeException("链接server时被中断", e);
         }
+    }
+
+    public void addChannelAfterInitHook(Consumer<Channel> channelConsumer) {
+        this.channelAfterInitHook.add(channelConsumer);
     }
 
     public Channel getChannel() {
