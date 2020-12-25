@@ -15,3 +15,15 @@ Snail在消息存储上借鉴了RocketMQ，具有CommitLog和CommitQueue。Log�
 - [x] boot-starter
 - [x] 重平衡
 - [ ] 多种重平衡策略
+
+### client-boot-starter
+
+客户端starter
+
+```
+<dependency>
+  <groupId>io.github.project-snail</groupId>
+  <artifactId>snailmq-client-boot-starter</artifactId>
+  <version>1.0.0</version>
+</dependency>
+```
