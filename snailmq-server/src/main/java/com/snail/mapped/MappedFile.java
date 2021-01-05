@@ -192,4 +192,8 @@ public class MappedFile {
     public void setAvailable(boolean available) {
         this.available = available;
     }
+
+    public FileChannel getFileChannel() {
+        return fileChannel;
+    }
 }

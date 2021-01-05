@@ -43,10 +43,13 @@ public class CommitQueue {
 
     public final static int QUEUE_ITEM_SIZE = 20;
 
-    public CommitQueue(String topic, Integer queueId, Long startOffset, File file, int maxQueueItemSize, boolean autoCreate) throws IOException {
+    private final FlushDiskHandler flushDiskHandler;
+
+    public CommitQueue(String topic, Integer queueId, Long startOffset, File file, int maxQueueItemSize, boolean autoCreate, FlushDiskHandler flushDiskHandler) throws IOException {
         this.topic = topic;
         this.queueId = queueId;
         this.startOffset = startOffset;
+        this.flushDiskHandler = flushDiskHandler;
         this.mappedFile = new MappedFile(file, (maxQueueItemSize + 1) * QUEUE_ITEM_SIZE, autoCreate);
         init();
         this.selectMappedBuffer = this.mappedFile.select(

@@ -1,8 +1,9 @@
 package com.snail.store;
 
-import com.snail.application.event.AddMessageEvent;
 import com.snail.commit.CommitLog;
 import com.snail.commit.CommitQueue;
+import com.snail.commit.FlushDiskHandler;
+import com.snail.commit.impl.AsyncFlushDiskHandler;
 import com.snail.config.MessageStoreConfig;
 import com.snail.consumer.TopicGroupOffset;
 import com.snail.exception.CommitQueueOverflowException;
@@ -38,8 +39,9 @@ import java.util.stream.Collectors;
 @Service
 public class CommitStore {
 
-    @Autowired
-    private ApplicationEventPublisher applicationEventPublisher;
+    private final ApplicationEventPublisher applicationEventPublisher;
+
+    private final FlushDiskHandler flushDiskHandler;
 
     private TreeMap<Long/* offset */, CommitLog> commitLogMap = null;
 
@@ -49,9 +51,12 @@ public class CommitStore {
 
     private MessageStoreConfig messageStoreConfig;
 
-    public CommitStore(MessageStoreConfig messageStoreConfig) {
+    @Autowired
+    public CommitStore(MessageStoreConfig messageStoreConfig, ApplicationEventPublisher applicationEventPublisher, FlushDiskHandler flushDiskHandler) {
         this.messageStoreConfig = messageStoreConfig;
+        this.flushDiskHandler = flushDiskHandler;
         init();
+        this.applicationEventPublisher = applicationEventPublisher;
     }
 
     private void init() {
@@ -94,7 +99,8 @@ public class CommitStore {
                                 commitLogFileMinOffset,
                                 file,
                                 this.messageStoreConfig.getCommitLogFileSize(),
-                                false
+                                false,
+                                flushDiskHandler
                             )
                         );
                     } catch (IOException e) {
@@ -232,7 +238,8 @@ public class CommitStore {
                         + String.format("%020d", newOffset)
                 ),
                 messageStoreConfig.getCommitLogFileSize(),
-                true
+                true,
+                flushDiskHandler
             );
             commitLogMap.put(newOffset, commitLog);
             return commitLog;
@@ -316,7 +323,8 @@ public class CommitStore {
                         + File.separator + newCommitQueueFileName
                 ),
                 messageStoreConfig.getMaxQueueItemSize(),
-                true
+                true,
+                flushDiskHandler
             );
 
             String topicQueueIdKey = topic + MessageStoreConfig.TOPIC_QUEUE_SEPARATOR + queueId;
@@ -615,7 +623,8 @@ public class CommitStore {
                                 queueIndexOffset,
                                 queueIndexFile,
                                 messageStoreConfig.getMaxQueueItemSize(),
-                                false
+                                false,
+                                flushDiskHandler
                             )
                         );
                     } catch (IOException e) {
@@ -638,7 +647,7 @@ public class CommitStore {
 
     }
 
-    public void shutdown() {
+    private void shutdown() {
 
         this.commitLogMap.values().forEach(CommitLog::shutdown);
         this.commitQueueMap.values().forEach(

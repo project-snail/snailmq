@@ -45,7 +45,7 @@ public class TestApplication {
 
         NettyRemotingClient nettyRemotingClient = new NettyRemotingClient(new RemotingClientConfig());
 
-        Channel channel = nettyRemotingClient.getChannelFuture().sync().channel();
+        Channel channel = nettyRemotingClient.getChannel();
 
         Message message = new Message();
         message.setTopic("topic");

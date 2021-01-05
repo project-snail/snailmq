@@ -1,6 +1,7 @@
 package com.snail;
 
 import com.snail.commit.CommitLog;
+import com.snail.commit.impl.SyncFlushDiskHandler;
 import com.snail.config.MessageStoreConfig;
 import com.snail.consumer.MqService;
 import com.snail.consumer.TopicGroupConsumerOffset;
@@ -52,7 +53,8 @@ public class TestApplication {
             0L,
             new File("store/commit_log"),
             1024 * 1024 * 10,
-            true
+            true,
+            new SyncFlushDiskHandler()
         );
 
         Message message = new Message();

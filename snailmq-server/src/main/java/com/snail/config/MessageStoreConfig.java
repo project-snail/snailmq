@@ -1,8 +1,13 @@
 package com.snail.config;
 
 import cn.hutool.core.thread.NamedThreadFactory;
+import com.snail.commit.FlushDiskHandler;
+import com.snail.commit.impl.AsyncFlushDiskHandler;
+import com.snail.commit.impl.SyncFlushDiskHandler;
+import com.snail.type.FlushDiskTypeEnums;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.stereotype.Component;
 
@@ -50,5 +55,20 @@ public class MessageStoreConfig {
     private final ScheduledExecutorService scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(
         new NamedThreadFactory("SnailMqScheduledExecutor", false)
     );
+
+    private FlushDiskTypeEnums flushDiskType = FlushDiskTypeEnums.ASYNC_FLUSH;
+
+    //    异步刷盘间隔时间
+    private Integer flushDishInterval = 500;
+
+    @Bean
+    public FlushDiskHandler flushDiskHandler() {
+        if (this.flushDiskType == FlushDiskTypeEnums.ASYNC_FLUSH) {
+            return new AsyncFlushDiskHandler(scheduledExecutorService, flushDishInterval);
+        } else {
+            return new SyncFlushDiskHandler();
+        }
+    }
+
 
 }

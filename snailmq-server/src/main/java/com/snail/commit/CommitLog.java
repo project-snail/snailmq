@@ -49,10 +49,13 @@ public class CommitLog {
     //    这个文件最大的大小
     private int maxFileSize;
 
-    public CommitLog(Long startOffset, File file, int fileSize, boolean autoCreate) throws IOException {
+    private final FlushDiskHandler flushDiskHandler;
+
+    public CommitLog(Long startOffset, File file, int fileSize, boolean autoCreate, FlushDiskHandler flushDiskHandler) throws IOException {
         this.startOffset = startOffset;
         this.mappedFile = new MappedFile(file, fileSize, autoCreate);
         this.maxFileSize = fileSize;
+        this.flushDiskHandler = flushDiskHandler;
         init();
         this.selectMappedBuffer = mappedFile.select(writePos.get(), fileSize - writePos.get());
         this.writePosSelectMappedBuffer = mappedFile.select(4, 12);
@@ -122,11 +125,15 @@ public class CommitLog {
 //        更新写指针
         updateWritePos(messageByteBuffer.limit());
 
-        return new MessageExt(
+        MessageExt messageExt = new MessageExt(
             message,
 //            此文件的起始偏移 加上写的偏移
             this.startOffset + (writePos.get() - messageByteBuffer.limit())
         );
+
+        this.flushDiskHandler.flush(this.mappedFile);
+
+        return messageExt;
 
     }
 
